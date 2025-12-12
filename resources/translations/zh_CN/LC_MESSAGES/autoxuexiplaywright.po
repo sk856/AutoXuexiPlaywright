@@ -378,34 +378,38 @@ msgid "GUI Mode:"
 msgstr "GUI 模式："
 
 #: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:150
+msgid "Ignore HTTPS Errors:"
+msgstr "忽略 HTTPS 错误："
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:153
 msgid "Browser Executable Path:"
 msgstr "浏览器执行文件路径："
 
-#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:151
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:154
 msgid "Browse..."
 msgstr "浏览。。。"
 
-#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:161
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:164
 msgid "Proxy Server:"
 msgstr "代理服务器："
 
-#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:162
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:165
 msgid "Proxy Bypass:"
 msgstr "忽略代理："
 
-#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:163
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:166
 msgid "Proxy Username:"
 msgstr "代理用户名："
 
-#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:164
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:167
 msgid "Proxy Password:"
 msgstr "代理密码："
 
-#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:167
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:170
 msgid "Skipped items:"
 msgstr "跳过的项目："
 
-#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:169
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:172
 msgid "Put items to be skipped one by one here."
 msgstr "将需要跳过的项目一行一个写在这里。"
 

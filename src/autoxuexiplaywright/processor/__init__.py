@@ -122,6 +122,7 @@ async def launch_processor(config: _Config):
             proxy=config.proxy,
             # Mute firefox
             firefox_user_prefs={"media.volume_scale": "0.0"},
+            ignore_https_errors=config.ignore_https_errors,
         )
         try:
             await _login(await context.new_page())

@@ -87,6 +87,10 @@ class SettingConfigWidget(_QWidget):
         self._setUpGuiChecker()
         self.layout().addWidget(self._guiChecker)
 
+        self._ignoreHttpsErrorsChecker = _QLabelWithCheckbox(self)
+        self._setUpIgnoreHttpsErrorsChecker()
+        self.layout().addWidget(self._ignoreHttpsErrorsChecker)
+
         self._executablePathSetter = _QLabelWithPathSetter(self)
         self._setUpExecutablePathSetter()
         self.layout().addWidget(self._executablePathSetter)
@@ -104,6 +108,7 @@ class SettingConfigWidget(_QWidget):
         self._channelSelector.setObjectName(objectName + "-channel-selector")
         self._debugChecker.setObjectName(objectName + "-debug-checker")
         self._guiChecker.setObjectName(objectName + "-gui-checker")
+        self._ignoreHttpsErrorsChecker.setObjectName(objectName + "-ignore-https-errors-checker")
         self._executablePathSetter.setObjectName(objectName + "-executable-path-setter")
         self._complexItemContainer.setObjectName(objectName + "-complex-item-container")
 
@@ -146,6 +151,9 @@ class SettingConfigWidget(_QWidget):
     def _setUpGuiChecker(self):
         self._guiChecker.labelWidget().setText(__("GUI Mode:"))
 
+    def _setUpIgnoreHttpsErrorsChecker(self):
+        self._ignoreHttpsErrorsChecker.labelWidget().setText(__("Ignore HTTPS Errors:"))
+
     def _setUpExecutablePathSetter(self):
         self._executablePathSetter.titleWidget().setText(__("Browser Executable Path:"))
         self._executablePathSetter.browseButton().setText(__("Browse..."))
@@ -185,6 +193,10 @@ class SettingConfigWidget(_QWidget):
         """The widget to config gui mode."""
         return self._guiChecker
 
+    def ignoreHttpsErrorsChecker(self) -> _QLabelWithCheckbox:
+        """The widget to config ignore https errors."""
+        return self._ignoreHttpsErrorsChecker
+
     def complexItemContainer(self) -> _SettingConfigComplexItemContainer:
         """The widget contains complex settings items."""
         return self._complexItemContainer
@@ -203,6 +215,8 @@ class SettingConfigWidget(_QWidget):
         self._debugChecker.checkerWidget().setChecked(config.debug)
 
         self._guiChecker.checkerWidget().setChecked(config.gui)
+
+        self._ignoreHttpsErrorsChecker.checkerWidget().setChecked(config.ignore_https_errors)
 
         executablePath = (
             "" if config.executable_path is None else config.executable_path
@@ -241,6 +255,8 @@ class SettingConfigWidget(_QWidget):
 
         gui = self._guiChecker.checkerWidget().isChecked()
 
+        ignoreHttpsErrors = self._ignoreHttpsErrorsChecker.checkerWidget().isChecked()
+
         executablePath = _toNoneIfFalse(
             self._executablePathSetter.pathDisplayWidget().text(),
         )
@@ -270,6 +286,7 @@ class SettingConfigWidget(_QWidget):
             debug,
             executablePath,
             gui,
+            ignoreHttpsErrors,
             proxy,
             skipped,
         )

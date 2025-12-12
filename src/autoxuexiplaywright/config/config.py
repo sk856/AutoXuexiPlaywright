@@ -32,5 +32,6 @@ class Config:
     debug: bool = False
     executable_path: str | None = None
     gui: bool = True
+    ignore_https_errors: bool = False
     proxy: ProxySettings | None = None
     skipped: list[str] = _data_field(default_factory=list)
