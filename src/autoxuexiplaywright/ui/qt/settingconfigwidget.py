@@ -281,12 +281,12 @@ class SettingConfigWidget(_QWidget):
         skipped = skippedWidget.toPlainText().splitlines()
 
         return _Config(
-            browserId,
-            browserChannel,
-            debug,
-            executablePath,
-            gui,
-            ignoreHttpsErrors,
-            proxy,
-            skipped,
+            browser_id=browserId,
+            browser_channel=browserChannel,
+            debug=debug,
+            executable_path=executablePath,
+            gui=gui,
+            ignore_https_errors=ignoreHttpsErrors,
+            proxy=proxy,
+            skipped=skipped,
         )
