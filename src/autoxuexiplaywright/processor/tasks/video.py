@@ -14,6 +14,8 @@ from autoxuexiplaywright.localize import gettext as __
 from autoxuexiplaywright.processor.tasks.read import ReadTask as _ReadTask
 from autoxuexiplaywright.processor.tasks.utils import first_task as _first_task
 from autoxuexiplaywright.processor.tasks.utils import clean_string as _clean_string
+from autoxuexiplaywright.processor.tasks.read_history import has_read as _has_read
+from autoxuexiplaywright.processor.tasks.read_history import mark_read as _mark_read
 
 
 _logger = _get_logger(__name__)
@@ -74,14 +76,14 @@ class VideoTask(_ReadTask):
             for i in range(await text_wrappers.count()):
                 text_wrapper = text_wrappers.nth(i)
                 text = _clean_string(await text_wrapper.inner_text())
-                if text not in self._read_titles:
+                if not _has_read("video", text):
                     found_video = True
                     _logger.info(__("Processing video %(title)s"), {"title": text})
                     async with library_page.context.expect_page() as e:
                         await text_wrapper.click()
                     video_page = await e.value
                     if await self._read(video_page):
-                        self._read_titles.append(text)
+                        _mark_read("video", text)
                     await video_page.close()
                     break
             if found_video:

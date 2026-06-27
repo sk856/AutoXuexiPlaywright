@@ -12,7 +12,10 @@ from PySide6.QtCore import QFileInfo as _QFileInfo
 from PySide6.QtCore import QRegularExpression as _QRegularExpression
 from PySide6.QtWidgets import QWidget as _QWidget
 from PySide6.QtWidgets import QFileDialog as _QFileDialog
+from PySide6.QtWidgets import QLineEdit as _QLineEdit
+from PySide6.QtWidgets import QMessageBox as _QMessageBox
 from PySide6.QtWidgets import QVBoxLayout as _QVBoxLayout
+from PySide6.QtWidgets import QPushButton as _QPushButton
 from autoxuexiplaywright.config import Config as _Config
 from autoxuexiplaywright.config import BrowserType as _BrowserType
 from autoxuexiplaywright.config import ChannelType as _ChannelType
@@ -20,6 +23,9 @@ from autoxuexiplaywright.config import ProxySettings as _ProxySettings
 from autoxuexiplaywright.localize import gettext as __
 from autoxuexiplaywright.ui.qt.qlabelwithcheckbox import (
     QLabelWithCheckbox as _QLabelWithCheckbox,
+)
+from autoxuexiplaywright.ui.qt.qlabelwithlineedit import (
+    QLabelWithLineEdit as _QLabelWithLineEdit,
 )
 from autoxuexiplaywright.ui.qt.qlabelwithcombobox import (
     QLabelWithCombobox as _QLabelWithCombobox,
@@ -29,6 +35,9 @@ from autoxuexiplaywright.ui.qt.qlabelwithpathsetter import (
 )
 from autoxuexiplaywright.ui.qt.settingconfigcomplexitemcontainer import (
     SettingConfigComplexItemContainer as _SettingConfigComplexItemContainer,
+)
+from autoxuexiplaywright.processor.answer_sources.openai_compatible import (
+    test_ai_answer_config_sync as _test_ai_answer_config,
 )
 
 
@@ -87,9 +96,33 @@ class SettingConfigWidget(_QWidget):
         self._setUpGuiChecker()
         self.layout().addWidget(self._guiChecker)
 
+        self._autoStartChecker = _QLabelWithCheckbox(self)
+        self._setUpAutoStartChecker()
+        self.layout().addWidget(self._autoStartChecker)
+
         self._executablePathSetter = _QLabelWithPathSetter(self)
         self._setUpExecutablePathSetter()
         self.layout().addWidget(self._executablePathSetter)
+
+        self._aiAnswerChecker = _QLabelWithCheckbox(self)
+        self._setUpAiAnswerChecker()
+        self.layout().addWidget(self._aiAnswerChecker)
+
+        self._aiAnswerBaseUrlSetter = _QLabelWithLineEdit(self)
+        self._setUpAiAnswerBaseUrlSetter()
+        self.layout().addWidget(self._aiAnswerBaseUrlSetter)
+
+        self._aiAnswerApiKeySetter = _QLabelWithLineEdit(self)
+        self._setUpAiAnswerApiKeySetter()
+        self.layout().addWidget(self._aiAnswerApiKeySetter)
+
+        self._aiAnswerModelSetter = _QLabelWithLineEdit(self)
+        self._setUpAiAnswerModelSetter()
+        self.layout().addWidget(self._aiAnswerModelSetter)
+
+        self._aiAnswerTestButton = _QPushButton(self)
+        self._setUpAiAnswerTestButton()
+        self.layout().addWidget(self._aiAnswerTestButton)
 
         self._complexItemContainer = _SettingConfigComplexItemContainer(self)
         self._setUpComplexItemContainer()
@@ -104,7 +137,13 @@ class SettingConfigWidget(_QWidget):
         self._channelSelector.setObjectName(objectName + "-channel-selector")
         self._debugChecker.setObjectName(objectName + "-debug-checker")
         self._guiChecker.setObjectName(objectName + "-gui-checker")
+        self._autoStartChecker.setObjectName(objectName + "-auto-start-checker")
         self._executablePathSetter.setObjectName(objectName + "-executable-path-setter")
+        self._aiAnswerChecker.setObjectName(objectName + "-ai-answer-checker")
+        self._aiAnswerBaseUrlSetter.setObjectName(objectName + "-ai-answer-base-url")
+        self._aiAnswerApiKeySetter.setObjectName(objectName + "-ai-answer-api-key")
+        self._aiAnswerModelSetter.setObjectName(objectName + "-ai-answer-model")
+        self._aiAnswerTestButton.setObjectName(objectName + "-ai-answer-test")
         self._complexItemContainer.setObjectName(objectName + "-complex-item-container")
 
     @_Slot(result=None)
@@ -146,12 +185,49 @@ class SettingConfigWidget(_QWidget):
     def _setUpGuiChecker(self):
         self._guiChecker.labelWidget().setText(__("GUI Mode:"))
 
+    def _setUpAutoStartChecker(self):
+        self._autoStartChecker.labelWidget().setText(__("Start automatically:"))
+
     def _setUpExecutablePathSetter(self):
         self._executablePathSetter.titleWidget().setText(__("Browser Executable Path:"))
         self._executablePathSetter.browseButton().setText(__("Browse..."))
         _ = self._executablePathSetter.browseButton().clicked.connect(
             self._onExecutablePathSetterBrowseButtonClicked,
         )
+
+    def _setUpAiAnswerChecker(self):
+        self._aiAnswerChecker.labelWidget().setText(__("Enable AI answer:"))
+
+    def _setUpAiAnswerBaseUrlSetter(self):
+        self._aiAnswerBaseUrlSetter.titleWidget().setText(__("AI API Base URL:"))
+        self._aiAnswerBaseUrlSetter.lineEditWidget().setToolTip(
+            __("OpenAI compatible API base URL, for example https://api.openai.com or http://127.0.0.1:8000/v1."),
+        )
+
+    def _setUpAiAnswerApiKeySetter(self):
+        self._aiAnswerApiKeySetter.titleWidget().setText(__("AI API Key:"))
+        self._aiAnswerApiKeySetter.lineEditWidget().setEchoMode(
+            _QLineEdit.EchoMode.PasswordEchoOnEdit,
+        )
+
+    def _setUpAiAnswerModelSetter(self):
+        self._aiAnswerModelSetter.titleWidget().setText(__("AI Model:"))
+
+    def _setUpAiAnswerTestButton(self):
+        self._aiAnswerTestButton.setText(__("Test AI API"))
+        _ = self._aiAnswerTestButton.clicked.connect(self._onAiAnswerTestButtonClicked)
+
+    @_Slot(result=None)
+    def _onAiAnswerTestButtonClicked(self):
+        self._aiAnswerTestButton.setEnabled(False)
+        self._aiAnswerTestButton.setText(__("Testing..."))
+        success, message = _test_ai_answer_config(self.toConfig())
+        self._aiAnswerTestButton.setEnabled(True)
+        self._aiAnswerTestButton.setText(__("Test AI API"))
+        if success:
+            _QMessageBox.information(self, __("AI API test"), message)
+        else:
+            _QMessageBox.warning(self, __("AI API test"), message)
 
     def _setUpComplexItemContainer(self):
         proxySetter = self._complexItemContainer.proxySetter()
@@ -204,10 +280,19 @@ class SettingConfigWidget(_QWidget):
 
         self._guiChecker.checkerWidget().setChecked(config.gui)
 
+        self._autoStartChecker.checkerWidget().setChecked(config.auto_start)
+
         executablePath = (
             "" if config.executable_path is None else config.executable_path
         )
         self._executablePathSetter.pathDisplayWidget().setText(executablePath)
+
+        self._aiAnswerChecker.checkerWidget().setChecked(config.ai_answer_enabled)
+        self._aiAnswerBaseUrlSetter.lineEditWidget().setText(
+            config.ai_answer_base_url,
+        )
+        self._aiAnswerApiKeySetter.lineEditWidget().setText(config.ai_answer_api_key)
+        self._aiAnswerModelSetter.lineEditWidget().setText(config.ai_answer_model)
 
         proxySetter = self._complexItemContainer.proxySetter()
         server = config.proxy.get("server", "") if config.proxy is not None else ""
@@ -241,6 +326,8 @@ class SettingConfigWidget(_QWidget):
 
         gui = self._guiChecker.checkerWidget().isChecked()
 
+        autoStart = self._autoStartChecker.checkerWidget().isChecked()
+
         executablePath = _toNoneIfFalse(
             self._executablePathSetter.pathDisplayWidget().text(),
         )
@@ -264,12 +351,22 @@ class SettingConfigWidget(_QWidget):
         skippedWidget = self._complexItemContainer.skippedItemsSetter().textEditWidget()
         skipped = skippedWidget.toPlainText().splitlines()
 
+        aiAnswerEnabled = self._aiAnswerChecker.checkerWidget().isChecked()
+        aiAnswerBaseUrl = self._aiAnswerBaseUrlSetter.lineEditWidget().text().strip()
+        aiAnswerApiKey = self._aiAnswerApiKeySetter.lineEditWidget().text().strip()
+        aiAnswerModel = self._aiAnswerModelSetter.lineEditWidget().text().strip()
+
         return _Config(
             browserId,
             browserChannel,
             debug,
             executablePath,
             gui,
+            autoStart,
             proxy,
             skipped,
+            aiAnswerEnabled,
+            aiAnswerBaseUrl,
+            aiAnswerApiKey,
+            aiAnswerModel,
         )

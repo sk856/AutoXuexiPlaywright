@@ -132,6 +132,29 @@ msgstr "因为 %(e)s 而无法从过时的数据库中迁移。"
 msgid "Migration completed. We will remove 'answer' table in %(path)s."
 msgstr "迁移完成。我们将移除 %(path)s 中的 \"answer\" 表。"
 
+#: src/autoxuexiplaywright/processor/answer_sources/openai_compatible.py
+msgid "AI answer is not configured."
+msgstr "AI 答题尚未配置。"
+
+#: src/autoxuexiplaywright/processor/answer_sources/openai_compatible.py
+#, python-format
+msgid "AI API test failed: %(e)s"
+msgstr "AI 接口测试失败：%(e)s"
+
+#: src/autoxuexiplaywright/processor/answer_sources/openai_compatible.py
+msgid "AI API is available."
+msgstr "AI 接口可用。"
+
+#: src/autoxuexiplaywright/processor/answer_sources/openai_compatible.py
+#, python-format
+msgid "AI API is available, response: %(response)s"
+msgstr "AI 接口可用，返回：%(response)s"
+
+#: src/autoxuexiplaywright/processor/answer_sources/openai_compatible.py
+#, python-format
+msgid "AI answer failed because %(e)s"
+msgstr "AI 答题失败：%(e)s"
+
 #: src/autoxuexiplaywright/processor/readers/simple_reader.py:72
 #, python-format
 msgid "Failed to read because %(e)s"
@@ -140,6 +163,14 @@ msgstr "因为 %(e)s 而阅读失败"
 #: src/autoxuexiplaywright/processor/tasks/daily_test.py:51
 msgid "Processing daily test..."
 msgstr "正在处理每日答题。。。"
+
+#: src/autoxuexiplaywright/processor/tasks/fun_test.py
+msgid "Processing fun test..."
+msgstr "正在处理趣味答题。。。"
+
+#: src/autoxuexiplaywright/processor/tasks/fun_test.py
+msgid "No fun test entrance can be found."
+msgstr "没有找到趣味答题入口。"
 
 #: src/autoxuexiplaywright/processor/tasks/login.py:67
 msgid "Login with cookie successfully."
@@ -377,6 +408,10 @@ msgstr "调试模式："
 msgid "GUI Mode:"
 msgstr "GUI 模式："
 
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Start automatically:"
+msgstr "启动软件后自动开始："
+
 #: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:150
 msgid "Browser Executable Path:"
 msgstr "浏览器执行文件路径："
@@ -384,6 +419,38 @@ msgstr "浏览器执行文件路径："
 #: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:151
 msgid "Browse..."
 msgstr "浏览。。。"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Enable AI answer:"
+msgstr "启用 AI 答题："
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "AI API Base URL:"
+msgstr "AI 接口地址："
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "OpenAI compatible API base URL, for example https://api.openai.com or http://127.0.0.1:8000/v1."
+msgstr "OpenAI 兼容接口地址，例如 https://api.openai.com 或 http://127.0.0.1:8000/v1。"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "AI API Key:"
+msgstr "AI 接口密钥："
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "AI Model:"
+msgstr "AI 模型："
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Test AI API"
+msgstr "测试 AI 接口"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Testing..."
+msgstr "正在测试。。。"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "AI API test"
+msgstr "AI 接口测试"
 
 #: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:161
 msgid "Proxy Server:"

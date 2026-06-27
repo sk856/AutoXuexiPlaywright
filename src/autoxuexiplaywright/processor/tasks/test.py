@@ -172,16 +172,22 @@ class TestTask(_Task, metaclass=_ABCMeta):
         tips: _Locator,
     ) -> _AsyncIterator[str]:
         itered = False
+        deferred_sources = []
         for source in _iter_modules(_AnswerSource):
+            if source.__class__.__name__ == "OpenAICompatibleAnswerSource":
+                deferred_sources.append(source)
+                continue
             try:
                 iterator = source.get_answer(title)
             except Exception as e:
                 _logger.error(__("Failed to get answer because %(e)s"), {"e": e})
             else:
+                source_itered = False
                 async for answer in iterator:
                     yield answer
                     itered = True
-                if itered:
+                    source_itered = True
+                if source_itered:
                     return
 
         if not itered:
@@ -208,6 +214,22 @@ class TestTask(_Task, metaclass=_ABCMeta):
 
             for text in self.__strip_answers(title, tips_texts, choice_titles):
                 yield text
+                itered = True
+            if itered:
+                return
+
+        for source in deferred_sources:
+            try:
+                iterator = source.get_answer(title)
+            except Exception as e:
+                _logger.error(__("Failed to get answer because %(e)s"), {"e": e})
+            else:
+                source_itered = False
+                async for answer in iterator:
+                    yield answer
+                    source_itered = True
+                if source_itered:
+                    return
 
     @_final
     async def __go_to_next_question_or_submit(

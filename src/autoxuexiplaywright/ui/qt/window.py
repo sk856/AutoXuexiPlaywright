@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt as _Qt
 from PySide6.QtCore import Slot as _Slot
 from PySide6.QtCore import Signal as _QSignal
 from PySide6.QtCore import QThread as _QThread
+from PySide6.QtCore import QTimer as _QTimer
 from PySide6.QtCore import QSettings as _QSettings
 from PySide6.QtWidgets import QFrame as _QFrame
 from PySide6.QtWidgets import QWidget as _QWidget
@@ -168,6 +169,8 @@ class MainWindow(_QTranslicentBackgroundFramelessWidget[_MainWindowContentWidget
         )
         self.__setUpUiSettings()
         self.__onStatusUpdated(__("Ready"))
+        if config.auto_start:
+            _QTimer.singleShot(0, content.operationWidget().startButton().click)
 
     @_Slot(result=None)
     def __onOnTopToggleButtonClicked(self):
