@@ -172,6 +172,10 @@ msgstr "正在处理趣味答题。。。"
 msgid "No fun test entrance can be found."
 msgstr "没有找到趣味答题入口。"
 
+#: src/autoxuexiplaywright/processor/tasks/fun_test.py
+msgid "No fun test question page can be found."
+msgstr "没有找到趣味答题题目页面。"
+
 #: src/autoxuexiplaywright/processor/tasks/login.py:67
 msgid "Login with cookie successfully."
 msgstr "使用 cookie 登录成功。"
