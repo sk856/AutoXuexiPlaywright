@@ -27,8 +27,15 @@ from autoxuexiplaywright.processor.tasks.video import VideoTask as VideoTask
 from autoxuexiplaywright.processor.tasks.daily_test import (
     DailyTestTask as DailyTestTask,
 )
+from autoxuexiplaywright.processor.tasks.fun_test import FunTestTask as FunTestTask
 from autoxuexiplaywright.processor.answer_sources.sqlite import (
     SqliteAnswerSource as SqliteAnswerSource,
+)
+from autoxuexiplaywright.processor.answer_sources.openai_compatible import (
+    OpenAICompatibleAnswerSource as OpenAICompatibleAnswerSource,
+)
+from autoxuexiplaywright.processor.answer_sources.openai_compatible import (
+    set_ai_answer_config as _set_ai_answer_config,
 )
 from autoxuexiplaywright.processor.captcha_handlers.drag import (
     DragCaptchaHandler as DragCaptchaHandler,
@@ -108,6 +115,7 @@ async def launch_processor(config: _Config):
     logger = _get_logger(__name__)
     start_time = _datetime.now()
     logger.info(__("Starting processing..."))
+    _set_ai_answer_config(config)
 
     if config.debug:
         _environ["PWDEBUG"] = "1"
@@ -148,6 +156,8 @@ async def launch_processor(config: _Config):
                         await page.close()
         except Exception as e:
             logger.error(__("Failed to finish tasks because %(e)s"), {"e": e})
+        finally:
+            await context.close()
 
     if _remove_pki and _legacy_pki_dir.is_dir():
         logger.debug(

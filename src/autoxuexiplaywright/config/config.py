@@ -32,5 +32,10 @@ class Config:
     debug: bool = False
     executable_path: str | None = None
     gui: bool = True
+    auto_start: bool = False
     proxy: ProxySettings | None = None
     skipped: list[str] = _data_field(default_factory=list)
+    ai_answer_enabled: bool = False
+    ai_answer_base_url: str = ""
+    ai_answer_api_key: str = ""
+    ai_answer_model: str = "gpt-4o-mini"

@@ -86,8 +86,12 @@ class SqliteAnswerSource(_AnswerSource):
             [title],
         ).fetchone()
         logger.debug(__("Got raw answer %(raw)s in database."), {"raw": answer_raw})
-        if isinstance(answer_raw, str):
-            for answer in answer_raw.split(self._ANSWER_CONNECTOR):
+        if (
+            isinstance(answer_raw, tuple)
+            and len(answer_raw) > 0
+            and isinstance(answer_raw[0], str)
+        ):
+            for answer in answer_raw[0].split(self._ANSWER_CONNECTOR):
                 yield answer
 
     @_override

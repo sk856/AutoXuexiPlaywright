@@ -14,6 +14,8 @@ from autoxuexiplaywright.localize import gettext as __
 from autoxuexiplaywright.processor.tasks.read import ReadTask as _ReadTask
 from autoxuexiplaywright.processor.tasks.utils import first_task as _first_task
 from autoxuexiplaywright.processor.tasks.utils import clean_string as _clean
+from autoxuexiplaywright.processor.tasks.read_history import has_read as _has_read
+from autoxuexiplaywright.processor.tasks.read_history import mark_read as _mark_read
 
 
 _logger = _get_logger(__name__)
@@ -74,14 +76,14 @@ class NewsTask(_ReadTask):
                 news = news_list.nth(i)
                 title_element = news.locator(self._NEWS_TITLE_TEXT)
                 title = _clean(await title_element.inner_text())
-                if title not in self._read_titles:
+                if not _has_read("news", title):
                     found_news = True
                     _logger.info(__("Processing news %(title)s"), {"title": title})
                     async with new_page.context.expect_page() as e:
                         await title_element.click()
                     news_page = await e.value
                     if await self._read(news_page):
-                        self._read_titles.append(title)
+                        _mark_read("news", title)
                     await news_page.close()
                     break
             if found_news:
