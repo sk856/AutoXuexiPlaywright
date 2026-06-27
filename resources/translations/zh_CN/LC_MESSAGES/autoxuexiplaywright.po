@@ -164,14 +164,6 @@ msgstr "因为 %(e)s 而阅读失败"
 msgid "Processing daily test..."
 msgstr "正在处理每日答题。。。"
 
-#: src/autoxuexiplaywright/processor/tasks/fun_test.py
-msgid "Processing fun test..."
-msgstr "正在处理趣味答题。。。"
-
-#: src/autoxuexiplaywright/processor/tasks/fun_test.py
-msgid "No fun test entrance can be found."
-msgstr "没有找到趣味答题入口。"
-
 #: src/autoxuexiplaywright/processor/tasks/login.py:67
 msgid "Login with cookie successfully."
 msgstr "使用 cookie 登录成功。"

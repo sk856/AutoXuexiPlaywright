@@ -27,7 +27,6 @@ from autoxuexiplaywright.processor.tasks.video import VideoTask as VideoTask
 from autoxuexiplaywright.processor.tasks.daily_test import (
     DailyTestTask as DailyTestTask,
 )
-from autoxuexiplaywright.processor.tasks.fun_test import FunTestTask as FunTestTask
 from autoxuexiplaywright.processor.answer_sources.sqlite import (
     SqliteAnswerSource as SqliteAnswerSource,
 )
