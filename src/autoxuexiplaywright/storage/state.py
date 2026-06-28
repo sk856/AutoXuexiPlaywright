@@ -9,6 +9,7 @@ from autoxuexiplaywright import APPAUTHOR as _APPAUTHOR
 def get_state_path(path: _Path) -> _Path:
     """Get path under state directory."""
     state = _state_path(_APPNAME, _APPAUTHOR)
+    state.mkdir(parents=True, exist_ok=True)
     if path.is_absolute():
         path = path.relative_to("/")
     return state / path
