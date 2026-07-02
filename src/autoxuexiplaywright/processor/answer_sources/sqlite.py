@@ -105,8 +105,9 @@ class SqliteAnswerSource(_AnswerSource):
 
     def __del__(self):
         """Triggered before instance is destoryed."""
-        self.__conn.commit()
-        self.__conn.close()
+        if hasattr(self, "_SqliteAnswerSource__conn"):
+            self.__conn.commit()
+            self.__conn.close()
 
     def __migration(self):
         if self.__conn.execute(self._LEGACY_TABLE_COUNT).fetchone()[0] == 1:

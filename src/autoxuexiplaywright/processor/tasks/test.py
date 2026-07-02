@@ -1,5 +1,6 @@
 """Basic operations to emulate testing."""
 
+from re import sub as _sub
 from abc import ABCMeta as _ABCMeta
 from random import uniform as _random_uniform
 from typing import final as _final
@@ -21,6 +22,10 @@ from autoxuexiplaywright.processor.tasks.utils import clean_string as _clean_str
 
 
 _logger = _get_logger(__name__)
+
+
+def _normalize_answer_text(text: str) -> str:
+    return _clean_string(_sub(r"^[A-ZＡ-Ｚa-zａ-ｚ]\s*[.．、:：]\s*", "", text))
 
 
 class TestTask(_Task, metaclass=_ABCMeta):
@@ -157,7 +162,12 @@ class TestTask(_Task, metaclass=_ABCMeta):
             )
             choice = choices.nth(position)
             class_of_choice = await choice.get_attribute("class") or ""
-            if answer in await choice.inner_text() and "chosen" not in class_of_choice:
+            clean_answer = _normalize_answer_text(answer)
+            choice_text = _normalize_answer_text(await choice.inner_text())
+            if (
+                (clean_answer in choice_text or choice_text in clean_answer)
+                and "chosen" not in class_of_choice
+            ):
                 _logger.debug(__("Choicing answer %(answer)s..."), {"answer": answer})
                 await choice.click(delay=self.__sleep_seconds * 1000)
                 return True

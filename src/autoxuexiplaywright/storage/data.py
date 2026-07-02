@@ -9,6 +9,7 @@ from autoxuexiplaywright import APPAUTHOR as _APPAUTHOR
 def get_data_path(path: _Path) -> _Path:
     """Get path under data directory."""
     data = _data_path(_APPNAME, _APPAUTHOR)
+    data.mkdir(parents=True, exist_ok=True)
     if path.is_absolute():
         path = path.relative_to("/")
     return data / path

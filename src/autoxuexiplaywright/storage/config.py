@@ -9,6 +9,7 @@ from autoxuexiplaywright import APPAUTHOR as _APPAUTHOR
 def get_config_path(path: _Path) -> _Path:
     """Get path under config directory."""
     config = _config_path(_APPNAME, _APPAUTHOR)
+    config.mkdir(parents=True, exist_ok=True)
     if path.is_absolute():
         path = path.relative_to("/")
     return config / path
