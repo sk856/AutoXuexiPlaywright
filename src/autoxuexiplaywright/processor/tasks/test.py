@@ -39,7 +39,7 @@ class TestTask(_Task, metaclass=_ABCMeta):
     _TIPS_BUTTON = "span.tips"
     _CHOICES = "div.q-answer.choosable"
     _QUESTION_TITLE = "div.q-body"
-    _BLANKS = "input.blank"
+    _BLANKS = "input.blank:visible, input.ant-input:visible, input[type='text']:visible, input:not([type]):visible, textarea:visible"
     _RESULT = "div.practice-result"
     _SOLUTION = "div.solution"
     _NEXT_BUTTON = "button.next-btn"
@@ -95,18 +95,16 @@ class TestTask(_Task, metaclass=_ABCMeta):
                         {"answer": answer},
                     )
 
-                if blanks_count > 0 and not await self.__fill_blank(
-                    blanks,
-                    position,
-                    answer,
-                ):
-                    _logger.warning(
-                        __(
-                            "Failed to fill the blank at %(position)d with answer %(answer)s",  # noqa: E501
-                        ),
-                        {"position": position, "answer": answer},
-                    )
-                    position += 1
+                if blanks_count > 0:
+                    if await self.__fill_blank(blanks, position, answer):
+                        position += 1
+                    else:
+                        _logger.warning(
+                            __(
+                                "Failed to fill the blank at %(position)d with answer %(answer)s",  # noqa: E501
+                            ),
+                            {"position": position, "answer": answer},
+                        )
 
             action_row = detail_body.locator(self._ACTION_ROW)
             solution = detail_body.locator(self._SOLUTION)
@@ -142,14 +140,15 @@ class TestTask(_Task, metaclass=_ABCMeta):
                 {"position": position},
             )
             blank = blanks.nth(position)
-            if await blank.input_value() == "" and await blank.is_editable():
-                _logger.debug(
-                    __("Filling blank with answer %(answer)s..."),
-                    {"answer": answer},
-                )
-                await blank.page.wait_for_timeout(self.__sleep_seconds * 1000)
-                await blank.fill(answer)
+            if await blank.input_value() != "" or not await blank.is_editable():
                 return True
+            _logger.debug(
+                __("Filling blank with answer %(answer)s..."),
+                {"answer": answer},
+            )
+            await blank.page.wait_for_timeout(self.__sleep_seconds * 1000)
+            await blank.fill(answer)
+            return True
         return False
 
     @_final
@@ -230,7 +229,10 @@ class TestTask(_Task, metaclass=_ABCMeta):
 
         for source in deferred_sources:
             try:
-                iterator = source.get_answer(title)
+                if source.__class__.__name__ == "OpenAICompatibleAnswerSource":
+                    iterator = source.get_answer(title, blank=len(choice_titles) == 0)
+                else:
+                    iterator = source.get_answer(title)
             except Exception as e:
                 _logger.error(__("Failed to get answer because %(e)s"), {"e": e})
             else:

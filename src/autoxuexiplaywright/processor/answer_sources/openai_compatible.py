@@ -72,24 +72,28 @@ def _request_chat_completion(
     return content
 
 
-def _build_prompt(title: str) -> str:
+def _build_prompt(title: str, *, blank: bool = False) -> str:
+    question_type = "填空题" if blank else "选择题"
     return "\n".join(
         [
             "请根据题目作答。",
             "只返回最终答案，不要解释。",
+            f"题型：{question_type}",
             f"题目：{title}",
-            f"如果有多个答案，请使用 {_ANSWER_CONNECTOR} 连接。",
+            f"如果有多个{'填空' if blank else '选项'}答案，请使用 {_ANSWER_CONNECTOR} 连接。",
         ],
     )
 
 
-def _parse_answers(content: str) -> list[str]:
+def _parse_answers(content: str, *, blank: bool = False) -> list[str]:
     content = content.strip()
     for prefix in ("答案：", "答案:", "最终答案：", "最终答案:"):
         if content.startswith(prefix):
             content = content.removeprefix(prefix).strip()
     content = content.replace("\n", _ANSWER_CONNECTOR)
-    separators = [_ANSWER_CONNECTOR, "；", ";", "，", ",", "、"]
+    separators = [_ANSWER_CONNECTOR, "；", ";"]
+    if not blank:
+        separators.extend(["，", ",", "、"])
     answers = [content]
     for separator in separators:
         if separator in content:
@@ -143,7 +147,7 @@ class OpenAICompatibleAnswerSource(_AnswerSource):
         return _APPAUTHOR
 
     @_override
-    async def get_answer(self, title: str) -> _AsyncIterator[str]:
+    async def get_answer(self, title: str, *, blank: bool = False) -> _AsyncIterator[str]:
         if not _runtime_config.ai_answer_enabled:
             return
         if (
@@ -156,11 +160,11 @@ class OpenAICompatibleAnswerSource(_AnswerSource):
         try:
             content = await _asyncio.to_thread(
                 _request_chat_completion,
-                _build_prompt(title),
+                _build_prompt(title, blank=blank),
                 "你是一个答题助手。必须只输出答案本身，不要输出解释、编号、Markdown 或多余文字。",
             )
         except (_HTTPError, _URLError, KeyError, IndexError, TypeError, ValueError) as e:
             _logger.warning(__("AI answer failed because %(e)s"), {"e": e})
             return
-        for answer in _parse_answers(content):
+        for answer in _parse_answers(content, blank=blank):
             yield answer
