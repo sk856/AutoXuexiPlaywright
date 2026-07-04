@@ -39,7 +39,7 @@ class TestTask(_Task, metaclass=_ABCMeta):
     _TIPS_BUTTON = "span.tips"
     _CHOICES = "div.q-answer.choosable"
     _QUESTION_TITLE = "div.q-body"
-    _BLANKS = "input.blank"
+    _BLANKS = "input.blank:visible, input.ant-input:visible, input[type='text']:visible, input:not([type]):visible, textarea:visible"
     _RESULT = "div.practice-result"
     _SOLUTION = "div.solution"
     _NEXT_BUTTON = "button.next-btn"
@@ -106,6 +106,7 @@ class TestTask(_Task, metaclass=_ABCMeta):
                         ),
                         {"position": position, "answer": answer},
                     )
+                if blanks_count > 0:
                     position += 1
 
             action_row = detail_body.locator(self._ACTION_ROW)
@@ -230,7 +231,10 @@ class TestTask(_Task, metaclass=_ABCMeta):
 
         for source in deferred_sources:
             try:
-                iterator = source.get_answer(title)
+                if source.__class__.__name__ == "OpenAICompatibleAnswerSource":
+                    iterator = source.get_answer(title, blank=len(choice_titles) == 0)
+                else:
+                    iterator = source.get_answer(title)
             except Exception as e:
                 _logger.error(__("Failed to get answer because %(e)s"), {"e": e})
             else:
