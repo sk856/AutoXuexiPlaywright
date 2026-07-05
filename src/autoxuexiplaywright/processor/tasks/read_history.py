@@ -61,7 +61,7 @@ def has_read(kind: str, title: str) -> bool:
     history = _cleanup_history(_load_history())
     for day_history in history.values():
         titles = day_history.get(kind, [])
-        if title in titles:
+        if isinstance(titles, list) and title in titles:
             return True
     return False
 
@@ -73,7 +73,8 @@ def mark_read(kind: str, title: str):
     history = _cleanup_history(_load_history())
     today = _today_key()
     history.setdefault(today, {})
-    history[today].setdefault(kind, [])
+    if not isinstance(history[today].get(kind), list):
+        history[today][kind] = []
     if title not in history[today][kind]:
         history[today][kind].append(title)
     _save_history(history)

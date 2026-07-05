@@ -306,7 +306,9 @@ class SettingConfigWidget(_QWidget):
         index = readHistoryRetentionSelector.findData(
             config.read_history_retention_days,
         )
-        readHistoryRetentionSelector.setCurrentIndex(max(index, 1))
+        if index < 0:
+            index = readHistoryRetentionSelector.findData(7)
+        readHistoryRetentionSelector.setCurrentIndex(max(index, 0))
 
         executablePath = (
             "" if config.executable_path is None else config.executable_path
