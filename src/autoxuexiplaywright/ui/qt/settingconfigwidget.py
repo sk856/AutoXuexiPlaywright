@@ -74,6 +74,7 @@ class SettingConfigWidget(_QWidget):
             r"(https?|socks[45])://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]",
         ),
     )
+    _READ_HISTORY_RETENTION_DAYS: _ClassVar[tuple[int, ...]] = (3, 7, 15, 30)
 
     @_override
     def __init__(self, parent: _QWidget | None = None):
@@ -99,6 +100,10 @@ class SettingConfigWidget(_QWidget):
         self._autoStartChecker = _QLabelWithCheckbox(self)
         self._setUpAutoStartChecker()
         self.layout().addWidget(self._autoStartChecker)
+
+        self._readHistoryRetentionSelector = _QLabelWithCombobox(self)
+        self._setUpReadHistoryRetentionSelector()
+        self.layout().addWidget(self._readHistoryRetentionSelector)
 
         self._executablePathSetter = _QLabelWithPathSetter(self)
         self._setUpExecutablePathSetter()
@@ -138,6 +143,9 @@ class SettingConfigWidget(_QWidget):
         self._debugChecker.setObjectName(objectName + "-debug-checker")
         self._guiChecker.setObjectName(objectName + "-gui-checker")
         self._autoStartChecker.setObjectName(objectName + "-auto-start-checker")
+        self._readHistoryRetentionSelector.setObjectName(
+            objectName + "-read-history-retention-selector",
+        )
         self._executablePathSetter.setObjectName(objectName + "-executable-path-setter")
         self._aiAnswerChecker.setObjectName(objectName + "-ai-answer-checker")
         self._aiAnswerBaseUrlSetter.setObjectName(objectName + "-ai-answer-base-url")
@@ -187,6 +195,16 @@ class SettingConfigWidget(_QWidget):
 
     def _setUpAutoStartChecker(self):
         self._autoStartChecker.labelWidget().setText(__("Start automatically:"))
+
+    def _setUpReadHistoryRetentionSelector(self):
+        self._readHistoryRetentionSelector.labelWidget().setText(
+            __("Read history retention:"),
+        )
+        contents = {
+            __("%(days)d days") % {"days": days}: days
+            for days in self._READ_HISTORY_RETENTION_DAYS
+        }
+        self._readHistoryRetentionSelector.setSelectorWidgetContents(**contents)
 
     def _setUpExecutablePathSetter(self):
         self._executablePathSetter.titleWidget().setText(__("Browser Executable Path:"))
@@ -282,6 +300,14 @@ class SettingConfigWidget(_QWidget):
 
         self._autoStartChecker.checkerWidget().setChecked(config.auto_start)
 
+        readHistoryRetentionSelector = (
+            self._readHistoryRetentionSelector.selectorWidget()
+        )
+        index = readHistoryRetentionSelector.findData(
+            config.read_history_retention_days,
+        )
+        readHistoryRetentionSelector.setCurrentIndex(max(index, 1))
+
         executablePath = (
             "" if config.executable_path is None else config.executable_path
         )
@@ -328,6 +354,12 @@ class SettingConfigWidget(_QWidget):
 
         autoStart = self._autoStartChecker.checkerWidget().isChecked()
 
+        readHistoryRetentionDays = (
+            self._readHistoryRetentionSelector.selectorWidget().currentData()
+        )
+        if readHistoryRetentionDays not in self._READ_HISTORY_RETENTION_DAYS:
+            readHistoryRetentionDays = 7
+
         executablePath = _toNoneIfFalse(
             self._executablePathSetter.pathDisplayWidget().text(),
         )
@@ -365,6 +397,7 @@ class SettingConfigWidget(_QWidget):
             autoStart,
             proxy,
             skipped,
+            readHistoryRetentionDays,
             aiAnswerEnabled,
             aiAnswerBaseUrl,
             aiAnswerApiKey,

@@ -404,6 +404,14 @@ msgstr "GUI 模式："
 msgid "Start automatically:"
 msgstr "启动软件后自动开始："
 
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Read history retention:"
+msgstr "已读记录保留："
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "%(days)d days"
+msgstr "%(days)d 天"
+
 #: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:150
 msgid "Browser Executable Path:"
 msgstr "浏览器执行文件路径："

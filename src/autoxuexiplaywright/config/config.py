@@ -35,6 +35,7 @@ class Config:
     auto_start: bool = False
     proxy: ProxySettings | None = None
     skipped: list[str] = _data_field(default_factory=list)
+    read_history_retention_days: int = 7
     ai_answer_enabled: bool = False
     ai_answer_base_url: str = ""
     ai_answer_api_key: str = ""

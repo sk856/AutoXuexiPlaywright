@@ -24,6 +24,9 @@ from autoxuexiplaywright.processor.tasks.login import LoginTask as LoginTask
 from autoxuexiplaywright.processor.tasks.utils import iter_task as iter_task
 from autoxuexiplaywright.processor.tasks.utils import first_task as first_task
 from autoxuexiplaywright.processor.tasks.video import VideoTask as VideoTask
+from autoxuexiplaywright.processor.tasks.read_history import (
+    set_read_history_retention_days as _set_read_history_retention_days,
+)
 from autoxuexiplaywright.processor.tasks.daily_test import (
     DailyTestTask as DailyTestTask,
 )
@@ -115,6 +118,7 @@ async def launch_processor(config: _Config):
     start_time = _datetime.now()
     logger.info(__("Starting processing..."))
     _set_ai_answer_config(config)
+    _set_read_history_retention_days(config.read_history_retention_days)
 
     if config.debug:
         _environ["PWDEBUG"] = "1"
