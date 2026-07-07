@@ -26,7 +26,7 @@ _logger = _get_logger(__name__)
 
 
 def _normalize_answer_text(text: str) -> str:
-    return _clean_string(_sub(r"^[A-ZＡ-Ｚa-zａ-ｚ]\s*[.．、:：]\s*", "", text))
+    return _clean_string(_sub(r"^[A-ZＡ-Ｚa-zａ-ｚ]\s*[.．、:：]\s*", "", text))  # noqa: RUF001
 
 
 def _choice_index_from_answer(answer: str) -> int | None:
@@ -49,7 +49,10 @@ class TestTask(_Task, metaclass=_ABCMeta):
     _TIPS_BUTTON = "span.tips"
     _CHOICES = "div.q-answer.choosable"
     _QUESTION_TITLE = "div.q-body"
-    _BLANKS = "div.q-body input, div.q-body textarea, input.blank, input.ant-input, input[type='text'], input:not([type]), textarea, [contenteditable='true']"
+    _BLANKS = (
+        "div.q-body input, div.q-body textarea, input.blank, input.ant-input, "
+        "input[type='text'], input:not([type]), textarea, [contenteditable='true']"
+    )
     _RESULT = "div.practice-result"
     _SOLUTION = "div.solution"
     _NEXT_BUTTON = "button.next-btn"
@@ -230,7 +233,7 @@ class TestTask(_Task, metaclass=_ABCMeta):
             return False
 
     @_final
-    async def __get_answer(
+    async def __get_answer(  # noqa: PLR0912
         self,
         title: str,
         choice_titles: list[str],
@@ -332,7 +335,9 @@ class TestTask(_Task, metaclass=_ABCMeta):
                     timeout=self._ACTION_TIMEOUT_MSECS,
                 )
             else:
-                _logger.error(__("Cannot found available next button or submit button."))
+                _logger.error(
+                    __("Cannot found available next button or submit button."),
+                )
                 return False
         except _TimeoutError as e:
             _logger.error(

@@ -25,26 +25,26 @@ from autoxuexiplaywright.processor.tasks.login import LoginTask as LoginTask
 from autoxuexiplaywright.processor.tasks.utils import iter_task as iter_task
 from autoxuexiplaywright.processor.tasks.utils import first_task as first_task
 from autoxuexiplaywright.processor.tasks.video import VideoTask as VideoTask
-from autoxuexiplaywright.processor.tasks.read_history import (
-    set_read_history_retention_days as _set_read_history_retention_days,
-)
 from autoxuexiplaywright.processor.tasks.daily_test import (
     DailyTestTask as DailyTestTask,
 )
+from autoxuexiplaywright.processor.tasks.read_history import (
+    set_read_history_retention_days as _set_read_history_retention_days,
+)
 from autoxuexiplaywright.processor.answer_sources.sqlite import (
     SqliteAnswerSource as SqliteAnswerSource,
-)
-from autoxuexiplaywright.processor.answer_sources.openai_compatible import (
-    OpenAICompatibleAnswerSource as OpenAICompatibleAnswerSource,
-)
-from autoxuexiplaywright.processor.answer_sources.openai_compatible import (
-    set_ai_answer_config as _set_ai_answer_config,
 )
 from autoxuexiplaywright.processor.captcha_handlers.drag import (
     DragCaptchaHandler as DragCaptchaHandler,
 )
 from autoxuexiplaywright.processor.readers.simple_reader import (
     SimpleReader as SimpleReader,
+)
+from autoxuexiplaywright.processor.answer_sources.openai_compatible import (
+    OpenAICompatibleAnswerSource as OpenAICompatibleAnswerSource,
+)
+from autoxuexiplaywright.processor.answer_sources.openai_compatible import (
+    set_ai_answer_config as _set_ai_answer_config,
 )
 
 
@@ -79,6 +79,7 @@ async def _iter_tasks_from_status_page(
     page: _Page,
     skipped: list[str],
 ) -> _AsyncGenerator[str]:
+    logger = _get_logger(__name__)
     status_page_url = "https://pc.xuexi.cn/points/my-points.html"
     points_selector = "span.my-points-points"
     cards_selector = "div.my-points-card"
@@ -96,7 +97,10 @@ async def _iter_tasks_from_status_page(
                 await score_event.trigger(await _get_scores(points))
             except _TimeoutError as e:
                 logger.error(
-                    __("Status page scores did not load, continuing without score update: %(e)s"),  # noqa: E501
+                    __(
+                        "Status page scores did not load, "
+                        "continuing without score update: %(e)s",
+                    ),
                     {"e": e},
                 )
 
@@ -108,7 +112,10 @@ async def _iter_tasks_from_status_page(
             await cards.last.wait_for(timeout=_STATUS_PAGE_TIMEOUT_MSECS)
         except _TimeoutError as e:
             logger.error(
-                __("Status page task cards did not load, skipping status refresh: %(e)s"),
+                __(
+                    "Status page task cards did not load, "
+                    "skipping status refresh: %(e)s",
+                ),
                 {"e": e},
             )
             break

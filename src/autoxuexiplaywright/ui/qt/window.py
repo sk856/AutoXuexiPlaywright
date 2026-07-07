@@ -12,9 +12,9 @@ from PySide6.QtGui import QShowEvent as _QShowEvent
 from PySide6.QtGui import QCloseEvent as _QCloseEvent
 from PySide6.QtCore import Qt as _Qt
 from PySide6.QtCore import Slot as _Slot
+from PySide6.QtCore import QTimer as _QTimer
 from PySide6.QtCore import Signal as _QSignal
 from PySide6.QtCore import QThread as _QThread
-from PySide6.QtCore import QTimer as _QTimer
 from PySide6.QtCore import QSettings as _QSettings
 from PySide6.QtWidgets import QFrame as _QFrame
 from PySide6.QtWidgets import QWidget as _QWidget

@@ -1,21 +1,23 @@
 """Get answer from OpenAI compatible chat completions API."""
 
-import asyncio as _asyncio
+# ruff: noqa: RUF001
+
 import json as _json
-from logging import getLogger as _get_logger
-from urllib.error import HTTPError as _HTTPError
-from urllib.error import URLError as _URLError
-from urllib.request import Request as _Request
-from urllib.request import urlopen as _urlopen
-from collections.abc import AsyncIterator as _AsyncIterator
+import asyncio as _asyncio
 from semver import Version as _Version
 from typing import final as _final
 from typing import override as _override
+from logging import getLogger as _get_logger
+from urllib.error import URLError as _URLError
+from urllib.error import HTTPError as _HTTPError
+from urllib.request import Request as _Request
+from urllib.request import urlopen as _urlopen
+from collections.abc import AsyncIterator as _AsyncIterator
 from autoxuexiplaywright import APPAUTHOR as _APPAUTHOR
 from autoxuexiplaywright import __version__ as _version
-from autoxuexiplaywright.config import Config as _Config
 from autoxuexiplaywright.sdk import AnswerSource as _AnswerSource
 from autoxuexiplaywright.sdk import module_entrance as _module
+from autoxuexiplaywright.config import Config as _Config
 from autoxuexiplaywright.localize import gettext as __
 from autoxuexiplaywright.processor.tasks.utils import clean_string as _clean_string
 
@@ -56,7 +58,7 @@ def _request_chat_completion(
         ],
         "temperature": 0,
     }
-    request = _Request(
+    request = _Request(  # noqa: S310
         _chat_completions_url(_runtime_config.ai_answer_base_url),
         data=_json.dumps(payload).encode("utf-8"),
         headers={
@@ -120,7 +122,9 @@ def _build_prompt(
         prompt_parts.append(f"如果有多个填空答案，请使用 {_ANSWER_CONNECTOR} 连接。")
     else:
         prompt_parts.append(
-            f"选择题必须优先返回选项文字本身；如果只能判断选项序号，也可以返回 A/B/C/D。多选题请使用 {_ANSWER_CONNECTOR} 连接。",
+            "选择题必须优先返回选项文字本身；"
+            "如果只能判断选项序号，也可以返回 A/B/C/D。"
+            f"多选题请使用 {_ANSWER_CONNECTOR} 连接。",
         )
     return "\n".join(prompt_parts)
 
@@ -217,7 +221,8 @@ class OpenAICompatibleAnswerSource(_AnswerSource):
             content = await _asyncio.to_thread(
                 _request_chat_completion,
                 _build_prompt(title, blank=blank, choices=choices),
-                "你是一个答题助手。必须只输出答案本身，不要输出解释、编号、Markdown 或多余文字。",
+                "你是一个答题助手。必须只输出答案本身，"
+                "不要输出解释、编号、Markdown 或多余文字。",
             )
         except Exception as e:
             _logger.warning(

@@ -11,11 +11,11 @@ from PySide6.QtCore import QFile as _QFile
 from PySide6.QtCore import QFileInfo as _QFileInfo
 from PySide6.QtCore import QRegularExpression as _QRegularExpression
 from PySide6.QtWidgets import QWidget as _QWidget
-from PySide6.QtWidgets import QFileDialog as _QFileDialog
 from PySide6.QtWidgets import QLineEdit as _QLineEdit
+from PySide6.QtWidgets import QFileDialog as _QFileDialog
 from PySide6.QtWidgets import QMessageBox as _QMessageBox
-from PySide6.QtWidgets import QVBoxLayout as _QVBoxLayout
 from PySide6.QtWidgets import QPushButton as _QPushButton
+from PySide6.QtWidgets import QVBoxLayout as _QVBoxLayout
 from autoxuexiplaywright.config import Config as _Config
 from autoxuexiplaywright.config import BrowserType as _BrowserType
 from autoxuexiplaywright.config import ChannelType as _ChannelType
@@ -24,11 +24,11 @@ from autoxuexiplaywright.localize import gettext as __
 from autoxuexiplaywright.ui.qt.qlabelwithcheckbox import (
     QLabelWithCheckbox as _QLabelWithCheckbox,
 )
-from autoxuexiplaywright.ui.qt.qlabelwithlineedit import (
-    QLabelWithLineEdit as _QLabelWithLineEdit,
-)
 from autoxuexiplaywright.ui.qt.qlabelwithcombobox import (
     QLabelWithCombobox as _QLabelWithCombobox,
+)
+from autoxuexiplaywright.ui.qt.qlabelwithlineedit import (
+    QLabelWithLineEdit as _QLabelWithLineEdit,
 )
 from autoxuexiplaywright.ui.qt.qlabelwithpathsetter import (
     QLabelWithPathSetter as _QLabelWithPathSetter,
