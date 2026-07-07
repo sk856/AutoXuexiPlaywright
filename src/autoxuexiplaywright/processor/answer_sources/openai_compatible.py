@@ -4,6 +4,8 @@
 
 import json as _json
 import asyncio as _asyncio
+from re import split as _re_split
+from re import escape as _re_escape
 from semver import Version as _Version
 from typing import final as _final
 from typing import override as _override
@@ -138,11 +140,10 @@ def _parse_answers(content: str, *, blank: bool = False) -> list[str]:
     separators = [_ANSWER_CONNECTOR, "；", ";"]
     if not blank:
         separators.extend(["，", ",", "、"])
-    answers = [content]
-    for separator in separators:
-        if separator in content:
-            answers = content.split(separator)
-            break
+    answers = _re_split(
+        "|".join(_re_escape(separator) for separator in separators),
+        content,
+    )
     return [_clean_string(answer) for answer in answers if _clean_string(answer) != ""]
 
 
