@@ -150,7 +150,10 @@ class TestTask(_Task, metaclass=_ABCMeta):
     @_final
     async def __fill_blank(self, blanks: _Locator, position: int, answer: str) -> bool:
         try:
-            await blanks.last.wait_for(timeout=self._BLANK_TIMEOUT_MSECS)
+            await blanks.last.wait_for(
+                state="attached",
+                timeout=self._BLANK_TIMEOUT_MSECS,
+            )
             if position < await blanks.count():
                 _logger.debug(
                     __("Checking blank at %(position)d..."),
