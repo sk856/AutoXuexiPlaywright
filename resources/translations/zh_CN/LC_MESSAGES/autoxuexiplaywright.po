@@ -84,6 +84,16 @@ msgstr "加载来自 %(author)s 的模块 %(name)s 成功。"
 msgid "Failed to parse score value."
 msgstr "解析分数失败。"
 
+#: src/autoxuexiplaywright/processor/__init__.py
+#, python-format
+msgid "Status page task cards did not load, skipping status refresh: %(e)s"
+msgstr "积分页面未加载出任务卡片，跳过本轮状态刷新：%(e)s"
+
+#: src/autoxuexiplaywright/processor/__init__.py
+#, python-format
+msgid "Status page scores did not load, continuing without score update: %(e)s"
+msgstr "积分页面分数未加载出来，将不更新分数并继续：%(e)s"
+
 #: src/autoxuexiplaywright/processor/__init__.py:110
 msgid "Starting processing..."
 msgstr "正在开始处理。。。"

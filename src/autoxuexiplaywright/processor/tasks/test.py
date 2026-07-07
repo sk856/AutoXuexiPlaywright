@@ -49,15 +49,15 @@ class TestTask(_Task, metaclass=_ABCMeta):
     _TIPS_BUTTON = "span.tips"
     _CHOICES = "div.q-answer.choosable"
     _QUESTION_TITLE = "div.q-body"
-    _BLANKS = "input.blank:visible, input.ant-input:visible, input[type='text']:visible, input:not([type]):visible, textarea:visible, [contenteditable='true']:visible, div.blank:visible, span.blank:visible, .blank:visible"
+    _BLANKS = "div.q-body input, div.q-body textarea, input.blank, input.ant-input, input[type='text'], input:not([type]), textarea, [contenteditable='true']"
     _RESULT = "div.practice-result"
     _SOLUTION = "div.solution"
     _NEXT_BUTTON = "button.next-btn"
     _SUBMIT_BUTTON = "button.submit-btn"
     _PAGER = "div.pager"
     _CURRENT_POSITION = "span.big"
-    _CHOICE_TIMEOUT_MSECS = 5000
-    _ACTION_TIMEOUT_MSECS = 5000
+    _CHOICE_TIMEOUT_MSECS = 30000
+    _ACTION_TIMEOUT_MSECS = 30000
     _BLANK_TIMEOUT_MSECS = 5000
     _DO_ANSWER_SLEEP_MIN_SECS = 10
     _DO_ANSWER_SLEEP_MAX_SECS = 15
@@ -157,21 +157,27 @@ class TestTask(_Task, metaclass=_ABCMeta):
                     {"position": position},
                 )
                 blank = blanks.nth(position)
-                if not await blank.is_editable(timeout=self._BLANK_TIMEOUT_MSECS):
-                    _logger.warning(__("Found blank is not editable."))
-                    return False
                 _logger.debug(
                     __("Filling blank with answer %(answer)s..."),
                     {"answer": answer},
                 )
                 await blank.page.wait_for_timeout(self.__sleep_seconds * 1000)
-                try:
-                    await blank.clear(timeout=self._BLANK_TIMEOUT_MSECS)
-                    await blank.fill(answer, timeout=self._BLANK_TIMEOUT_MSECS)
-                except _TimeoutError:
-                    await blank.click(timeout=self._BLANK_TIMEOUT_MSECS)
-                    await blank.page.keyboard.press("Control+A")
-                    await blank.page.keyboard.type(answer)
+                await blank.evaluate(
+                    """
+                    (element, value) => {
+                        if ('value' in element) {
+                            element.value = value;
+                            element.setAttribute('value', value);
+                        } else {
+                            element.textContent = value;
+                        }
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    """,
+                    answer,
+                    timeout=self._BLANK_TIMEOUT_MSECS,
+                )
                 return True
         except _TimeoutError as e:
             _logger.warning(__("Timed out while filling blank: %(e)s"), {"e": e})

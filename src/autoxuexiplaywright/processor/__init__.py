@@ -9,6 +9,7 @@ from datetime import datetime as _datetime
 from collections.abc import AsyncGenerator as _AsyncGenerator
 from playwright.async_api import Page as _Page
 from playwright.async_api import Locator as _Locator
+from playwright.async_api import TimeoutError as _TimeoutError
 from playwright.async_api import expect as _expect
 from playwright.async_api import async_playwright as _playwright
 from autoxuexiplaywright.event import Score as _Score
@@ -51,6 +52,7 @@ _legacy_pki_dir = _Path.home() / ".pki"
 _mozilla_dir = _Path.home() / ".mozilla"
 _remove_pki = not _legacy_pki_dir.is_dir()
 _remove_mozilla = not _mozilla_dir.is_dir()
+_STATUS_PAGE_TIMEOUT_MSECS = 5000
 
 
 async def _login(page: _Page):
@@ -60,7 +62,7 @@ async def _login(page: _Page):
 
 async def _get_scores(points: _Locator) -> _Score:
     logger = _get_logger(__name__)
-    await points.last.wait_for()
+    await points.last.wait_for(timeout=_STATUS_PAGE_TIMEOUT_MSECS)
     await _expect(points.nth(0)).to_be_visible()
     await _expect(points.nth(1)).to_be_visible()
     try:
@@ -90,13 +92,26 @@ async def _iter_tasks_from_status_page(
         points = page.locator(points_selector)
         score_event = _find_event(_EventID.SCORE_UPDATED, _ScoreUpdatedEvent)
         if score_event is not None:
-            await score_event.trigger(await _get_scores(points))
+            try:
+                await score_event.trigger(await _get_scores(points))
+            except _TimeoutError as e:
+                logger.error(
+                    __("Status page scores did not load, continuing without score update: %(e)s"),  # noqa: E501
+                    {"e": e},
+                )
 
         if all_finished:
             break
 
         cards = page.locator(cards_selector)
-        await cards.last.wait_for()
+        try:
+            await cards.last.wait_for(timeout=_STATUS_PAGE_TIMEOUT_MSECS)
+        except _TimeoutError as e:
+            logger.error(
+                __("Status page task cards did not load, skipping status refresh: %(e)s"),
+                {"e": e},
+            )
+            break
         all_finished = True
         for i in range(await cards.count()):
             card = cards.nth(i)
