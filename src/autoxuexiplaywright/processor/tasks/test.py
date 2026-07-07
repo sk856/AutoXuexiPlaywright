@@ -31,10 +31,15 @@ def _normalize_answer_text(text: str) -> str:
 
 def _choice_index_from_answer(answer: str) -> int | None:
     normalized = _clean_string(answer).strip().upper()
+    normalized = normalized.strip("()[]\uFF08\uFF09\u3010\u3011")
+    normalized = _sub(r"\s+", "", normalized)
+    normalized = _sub(r"[.\uFF0E\u3001:\uFF1A\u3002]+$", "", normalized)
     if len(normalized) != 1:
         return None
     if "A" <= normalized <= "Z":
         return ord(normalized) - ord("A")
+    if "\uFF21" <= normalized <= "\uFF3A":
+        return ord(normalized) - ord("\uFF21")
     return None
 
 
@@ -209,6 +214,8 @@ class TestTask(_Task, metaclass=_ABCMeta):
             )
             choice = choices.nth(position)
             clean_answer = _normalize_answer_text(answer)
+            if clean_answer == "":
+                return False
             choice_text = _normalize_answer_text(await choice.inner_text())
             if clean_answer in choice_text or choice_text in clean_answer:
                 _logger.debug(__("Choicing answer %(answer)s..."), {"answer": answer})
