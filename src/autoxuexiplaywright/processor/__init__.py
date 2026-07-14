@@ -150,6 +150,8 @@ async def launch_processor(config: _Config):
             _cache(_Path("browser-data")) / config.browser_id,
             channel=config.browser_channel,
             executable_path=config.executable_path,
+            # Video pages reject headless Chromium. Debug mode is explicitly headed.
+            headless=not config.debug,
             # Mute Chromium
             args=["--mute-audio"],
             proxy=config.proxy,
