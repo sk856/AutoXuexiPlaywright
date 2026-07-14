@@ -11,6 +11,7 @@ from playwright.async_api import expect as _expect
 from autoxuexiplaywright.sdk import Task as _Task
 from autoxuexiplaywright.sdk import module_entrance as _module
 from autoxuexiplaywright.localize import gettext as __
+from autoxuexiplaywright.processor.navigation import goto as _goto
 from autoxuexiplaywright.processor.tasks.read import ReadTask as _ReadTask
 from autoxuexiplaywright.processor.tasks.utils import first_task as _first_task
 from autoxuexiplaywright.processor.tasks.utils import clean_string as _clean
@@ -56,8 +57,7 @@ class NewsTask(_ReadTask):
 
     @_override
     async def _handle(self, page: _Page, task_name: str) -> bool:
-        _ = await page.goto(self._MAIN_PAGE)
-        await page.wait_for_load_state()
+        await _goto(page, self._MAIN_PAGE)
 
         title_span = page.locator(self._NEWS_TITLE_SPAN).first
         await title_span.wait_for()

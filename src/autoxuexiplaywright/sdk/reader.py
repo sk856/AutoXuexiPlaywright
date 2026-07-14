@@ -39,14 +39,18 @@ class Reader(_Module, metaclass=_ABCMeta):
         raise NotImplementedError
 
     @_final
-    async def play_video(self, page: _Page):
+    async def play_video(
+        self,
+        page: _Page,
+        action_timeout_msecs: float | None = None,
+    ):
         """Play the video on the page."""
         player = page.locator(self._VIDEO_PLAYER)
         if await player.count() > 0:
-            await player.wait_for()
+            await player.wait_for(timeout=action_timeout_msecs)
             play = player.locator(self._PLAY_BTN)
             replay = player.locator(self._REPLAY_BTN)
             if await replay.count() == 0:
-                await player.hover()
+                await player.hover(timeout=action_timeout_msecs)
                 if "playing" not in (await play.get_attribute("class") or ""):
-                    await play.click()
+                    await play.click(timeout=action_timeout_msecs)

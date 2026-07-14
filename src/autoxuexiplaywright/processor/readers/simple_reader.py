@@ -46,16 +46,22 @@ class SimpleReader(_Reader):
         first_read = True
         page.set_default_timeout(read_seconds * 1000)
         start = _time()
-        while (_time() - start) < read_seconds:
-            await page.wait_for_timeout(
-                _uniform(
-                    min_sleep_seconds,
-                    max_sleep_seconds,
-                )
-                * 1000,
+        deadline = start + read_seconds
+        while _time() < deadline:
+            remaining = deadline - _time()
+            delay = min(
+                _uniform(min_sleep_seconds, max_sleep_seconds),
+                max(0.0, remaining),
             )
+            if delay <= 0:
+                break
+            await page.wait_for_timeout(delay * 1000)
             try:
-                await self.play_video(page)
+                remaining_msecs = max(1, int((deadline - _time()) * 1000))
+                await self.play_video(
+                    page,
+                    action_timeout_msecs=min(5000, remaining_msecs),
+                )
                 video_subtitle = page.locator(self._VIDEO_SUBTITLE)
                 page_paragraphs = page.locator(self._PAGE_PARAGRAPHS)
                 await self.__scroll_elements(
@@ -63,16 +69,20 @@ class SimpleReader(_Reader):
                     first_read,
                     min_sleep_seconds,
                     max_sleep_seconds,
+                    deadline,
                 )
                 first_read = False
             except _TimeoutError:
-                pass
+                _logger.debug(
+                    "Timed out while reading page content; continuing until deadline.",
+                )
             except Exception as e:
                 _logger.error(
                     __("Failed to read because %(e)s"),
                     {"e": e},
                 )
                 return False
+        _logger.debug("Reading completed in %.1f seconds.", _time() - start)
         return True
 
     async def __scroll_elements(
@@ -81,16 +91,22 @@ class SimpleReader(_Reader):
         order: bool,
         min_sleep_seconds: float,
         max_sleep_seconds: float,
+        deadline: float,
     ):
         count = await elements.count()
-        if count > 0:
-            for i in range(count):
-                await elements.page.wait_for_timeout(
-                    _uniform(
-                        min_sleep_seconds,
-                        max_sleep_seconds,
-                    )
-                    * 1000,
-                )
-                index = i if order else _randint(0, count - 1)
-                await elements.nth(index).scroll_into_view_if_needed()
+        for i in range(count):
+            remaining = deadline - _time()
+            if remaining <= 0:
+                return
+            delay = min(
+                _uniform(min_sleep_seconds, max_sleep_seconds),
+                remaining,
+            )
+            await elements.page.wait_for_timeout(delay * 1000)
+            remaining_msecs = max(1, int((deadline - _time()) * 1000))
+            if remaining_msecs <= 1:
+                return
+            index = i if order else _randint(0, count - 1)
+            await elements.nth(index).scroll_into_view_if_needed(
+                timeout=min(5000, remaining_msecs),
+            )

@@ -20,6 +20,7 @@ from autoxuexiplaywright.event import find_event_by_id as _find_event
 from autoxuexiplaywright.config import Config as _Config
 from autoxuexiplaywright.storage import get_cache_path as _cache
 from autoxuexiplaywright.localize import gettext as __
+from autoxuexiplaywright.processor.navigation import goto as _goto
 from autoxuexiplaywright.processor.tasks.news import NewsTask as NewsTask
 from autoxuexiplaywright.processor.tasks.login import LoginTask as LoginTask
 from autoxuexiplaywright.processor.tasks.utils import iter_task as iter_task
@@ -88,8 +89,7 @@ async def _iter_tasks_from_status_page(
 
     all_finished = False
     while True:
-        _ = await page.goto(status_page_url)
-        await page.wait_for_load_state()
+        await _goto(page, status_page_url)
         points = page.locator(points_selector)
         score_event = _find_event(_EventID.SCORE_UPDATED, _ScoreUpdatedEvent)
         if score_event is not None:

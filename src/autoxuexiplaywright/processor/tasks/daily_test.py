@@ -10,6 +10,7 @@ from playwright.async_api import Page as _Page
 from autoxuexiplaywright.sdk import Task as _Task
 from autoxuexiplaywright.sdk import module_entrance as _module
 from autoxuexiplaywright.localize import gettext as __
+from autoxuexiplaywright.processor.navigation import goto as _goto
 from autoxuexiplaywright.processor.tasks.test import TestTask as _TestTask
 from autoxuexiplaywright.processor.tasks.utils import first_task as _first_task
 
@@ -46,7 +47,7 @@ class DailyTestTask(_TestTask):
 
     @_override
     async def _handle(self, page: _Page, task_name: str) -> bool:
-        _ = await page.goto(self._DAILY_TEST_PAGE)
+        await _goto(page, self._DAILY_TEST_PAGE)
         logger = _get_logger(__name__)
         logger.info(__("Processing daily test..."))
         return await self._test(page)

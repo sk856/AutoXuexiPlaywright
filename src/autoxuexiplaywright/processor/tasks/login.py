@@ -17,6 +17,7 @@ from autoxuexiplaywright.event import EventID as _EventID
 from autoxuexiplaywright.event import QrUpdatedEvent as _QrUpdatedEvent
 from autoxuexiplaywright.event import find_event_by_id as _get_event
 from autoxuexiplaywright.localize import gettext as __
+from autoxuexiplaywright.processor.navigation import goto as _goto
 
 
 _logger = _get_logger(__name__)
@@ -58,8 +59,7 @@ class LoginTask(_Task):
 
     @_override
     async def _handle(self, page: _Page, task_name: str) -> bool:
-        _ = await page.goto(self._LOGIN_PAGE)
-        await page.wait_for_load_state()
+        await _goto(page, self._LOGIN_PAGE)
         await page.bring_to_front()
 
         login_check = page.locator(self._LOGIN_CHECK_SELECTOR).first
