@@ -5,6 +5,7 @@ from abc import ABCMeta as _ABCMeta
 from random import uniform as _random_uniform
 from typing import final as _final
 from logging import getLogger as _get_logger
+from contextlib import suppress as _suppress
 from collections.abc import Iterator as _Iterator
 from collections.abc import AsyncIterator as _AsyncIterator
 from playwright.async_api import Page as _Page
@@ -52,13 +53,15 @@ class TestTask(_Task, metaclass=_ABCMeta):
     _TIPS = "div.line-feed"
     _RED_FONTS = 'font[color="red"]'
     _TIPS_BUTTON = "span.tips"
-    _CHOICES = "div.q-answer.choosable"
+    _CHOICES = "div.q-answer.choosable, div.fill-answer.fill-answer-hover"
     _QUESTION_TITLE = "div.q-body"
     _BLANKS = (
         "div.q-body input, div.q-body textarea, input.blank, input.ant-input, "
         "input[type='text'], input:not([type]), textarea, [contenteditable='true']"
     )
     _RESULT = "div.practice-result"
+    _RESULT_MODAL = "div.ant-modal-wrap"
+    _ANALYSIS_CHOICE = "div.q-answer-analysis"
     _SOLUTION = "div.solution"
     _NEXT_BUTTON = "button.next-btn"
     _SUBMIT_BUTTON = "button.submit-btn"
@@ -73,7 +76,10 @@ class TestTask(_Task, metaclass=_ABCMeta):
     @_final
     async def _test(self, page: _Page) -> bool:
         result = page.locator(self._RESULT)
-        while await result.is_hidden():
+        while (
+            await result.is_hidden()
+            and not await self.__submitted_result_is_ready(page, result)
+        ):
             detail_body = page.locator(self._DETAIL_BODY)
             await detail_body.wait_for()
             question = detail_body.locator(self._QUESTION)
@@ -156,6 +162,35 @@ class TestTask(_Task, metaclass=_ABCMeta):
         return True
 
     @_final
+    async def __submitted_result_is_ready(
+        self,
+        page: _Page,
+        result: _Locator,
+    ) -> bool:
+        modal = page.locator(self._RESULT_MODAL)
+        analysis = page.locator(self._ANALYSIS_CHOICE)
+        modal_visible = await modal.count() > 0 and await modal.last.is_visible()
+        if not modal_visible and await analysis.count() == 0:
+            return False
+        try:
+            await result.last.wait_for(state="visible", timeout=20_000)
+            return True
+        except _TimeoutError as e:
+            modal_text = ""
+            if modal_visible:
+                with _suppress(_TimeoutError):
+                    modal_text = _clean_string(
+                        await modal.last.inner_text(timeout=3000),
+                    )
+            _logger.warning(
+                "Submitted question is covered by a result modal; "
+                "stopping repeated answer clicks: text=%r error=%s",
+                modal_text[:200],
+                e,
+            )
+            return modal_visible and await analysis.count() > 0
+
+    @_final
     async def __fill_blank(self, blanks: _Locator, position: int, answer: str) -> bool:
         try:
             await blanks.last.wait_for(
@@ -229,7 +264,15 @@ class TestTask(_Task, metaclass=_ABCMeta):
                 "class",
                 timeout=self._CHOICE_TIMEOUT_MSECS,
             ) or ""
-            if "chosen" not in class_of_choice:
+            if "q-answer-analysis" in class_of_choice:
+                _logger.warning(
+                    "Question is already submitted; skipping repeated choice click.",
+                )
+                return False
+            if (
+                "chosen" not in class_of_choice
+                and "fill-answer-click" not in class_of_choice
+            ):
                 await choice.click(
                     delay=self.__sleep_seconds * 1000,
                     timeout=self._CHOICE_TIMEOUT_MSECS,

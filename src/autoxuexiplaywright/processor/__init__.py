@@ -142,8 +142,14 @@ async def launch_processor(config: _Config):
     _set_ai_answer_config(config)
     _set_read_history_retention_days(config.read_history_retention_days)
 
-    if config.debug:
-        _environ["PWDEBUG"] = "1"
+    # ``debug`` keeps Chromium headed for pages that reject headless mode, but
+    # the browser stays off-screen and Playwright Inspector is not enabled.
+    _environ.pop("PWDEBUG", None)
+    browser_args = ["--mute-audio"]
+    if config.debug and config.browser_id == "chromium":
+        browser_args.extend(
+            ["--window-position=-32000,-32000", "--window-size=1280,900"],
+        )
 
     async with _playwright() as p:
         context = await p[config.browser_id].launch_persistent_context(
@@ -153,7 +159,7 @@ async def launch_processor(config: _Config):
             # Video pages reject headless Chromium. Debug mode is explicitly headed.
             headless=not config.debug,
             # Mute Chromium
-            args=["--mute-audio"],
+            args=browser_args,
             proxy=config.proxy,
             # Mute firefox
             firefox_user_prefs={"media.volume_scale": "0.0"},
