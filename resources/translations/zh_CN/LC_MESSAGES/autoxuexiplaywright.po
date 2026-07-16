@@ -84,6 +84,16 @@ msgstr "加载来自 %(author)s 的模块 %(name)s 成功。"
 msgid "Failed to parse score value."
 msgstr "解析分数失败。"
 
+#: src/autoxuexiplaywright/processor/__init__.py
+#, python-format
+msgid "Status page task cards did not load, skipping status refresh: %(e)s"
+msgstr "积分页面未加载出任务卡片，跳过本轮状态刷新：%(e)s"
+
+#: src/autoxuexiplaywright/processor/__init__.py
+#, python-format
+msgid "Status page scores did not load, continuing without score update: %(e)s"
+msgstr "积分页面分数未加载出来，将不更新分数并继续：%(e)s"
+
 #: src/autoxuexiplaywright/processor/__init__.py:110
 msgid "Starting processing..."
 msgstr "正在开始处理。。。"
@@ -137,6 +147,10 @@ msgid "AI answer is not configured."
 msgstr "AI 答题尚未配置。"
 
 #: src/autoxuexiplaywright/processor/answer_sources/openai_compatible.py
+msgid "AI answer is disabled, skipping AI."
+msgstr "AI 答题未启用，跳过 AI。"
+
+#: src/autoxuexiplaywright/processor/answer_sources/openai_compatible.py
 #, python-format
 msgid "AI API test failed: %(e)s"
 msgstr "AI 接口测试失败：%(e)s"
@@ -154,6 +168,16 @@ msgstr "AI 接口可用，返回：%(response)s"
 #, python-format
 msgid "AI answer failed because %(e)s"
 msgstr "AI 答题失败：%(e)s"
+
+#: src/autoxuexiplaywright/processor/answer_sources/openai_compatible.py
+#, python-format
+msgid "Trying AI answer with model %(model)s and base URL %(base_url)s"
+msgstr "正在调用 AI 答题，模型：%(model)s，接口：%(base_url)s"
+
+#: src/autoxuexiplaywright/processor/answer_sources/openai_compatible.py
+#, python-format
+msgid "AI returned content but no answer could be parsed: %(content)s"
+msgstr "AI 已返回内容，但无法解析出答案：%(content)s"
 
 #: src/autoxuexiplaywright/processor/readers/simple_reader.py:72
 #, python-format
@@ -241,6 +265,34 @@ msgstr "正在检查位于 %(position)d 的选项。。。"
 #, python-format
 msgid "Choicing answer %(answer)s..."
 msgstr "正在使用答案 %(answer)s 选择。。。"
+
+#: src/autoxuexiplaywright/processor/tasks/test.py
+#, python-format
+msgid "Choicing answer %(answer)s by option index %(position)d..."
+msgstr "正在按选项字母 %(answer)s 选择第 %(position)d 个选项。。。"
+
+#: src/autoxuexiplaywright/processor/tasks/test.py
+#, python-format
+msgid "Timed out while choosing answer: %(e)s"
+msgstr "选择答案超时：%(e)s"
+
+#: src/autoxuexiplaywright/processor/tasks/test.py
+msgid "No answer elements found for current question."
+msgstr "当前题目没有找到可填写或可选择的答案位置。"
+
+#: src/autoxuexiplaywright/processor/tasks/test.py
+msgid "Found blank is not editable."
+msgstr "找到的填空位置不可编辑。"
+
+#: src/autoxuexiplaywright/processor/tasks/test.py
+#, python-format
+msgid "Timed out while filling blank: %(e)s"
+msgstr "填写空格超时：%(e)s"
+
+#: src/autoxuexiplaywright/processor/tasks/test.py
+#, python-format
+msgid "Timed out while clicking next or submit: %(e)s"
+msgstr "点击下一题或提交按钮超时：%(e)s"
 
 #: src/autoxuexiplaywright/processor/tasks/test.py:179
 #, python-format

@@ -1,9 +1,9 @@
 """Persist read history by date."""
 
 import json as _json
+from pathlib import Path as _Path
 from datetime import date as _date
 from datetime import timedelta as _timedelta
-from pathlib import Path as _Path
 from autoxuexiplaywright.storage import get_data_path as _get_data_path
 
 

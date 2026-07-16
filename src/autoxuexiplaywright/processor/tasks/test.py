@@ -5,10 +5,12 @@ from abc import ABCMeta as _ABCMeta
 from random import uniform as _random_uniform
 from typing import final as _final
 from logging import getLogger as _get_logger
+from contextlib import suppress as _suppress
 from collections.abc import Iterator as _Iterator
 from collections.abc import AsyncIterator as _AsyncIterator
 from playwright.async_api import Page as _Page
 from playwright.async_api import Locator as _Locator
+from playwright.async_api import TimeoutError as _TimeoutError
 from playwright.async_api import expect as _expect
 from autoxuexiplaywright.sdk import Task as _Task
 from autoxuexiplaywright.sdk import AnswerSource as _AnswerSource
@@ -25,7 +27,21 @@ _logger = _get_logger(__name__)
 
 
 def _normalize_answer_text(text: str) -> str:
-    return _clean_string(_sub(r"^[A-ZＡ-Ｚa-zａ-ｚ]\s*[.．、:：]\s*", "", text))
+    return _clean_string(_sub(r"^[A-ZＡ-Ｚa-zａ-ｚ]\s*[.．、:：]\s*", "", text))  # noqa: RUF001
+
+
+def _choice_index_from_answer(answer: str) -> int | None:
+    normalized = _clean_string(answer).strip().upper()
+    normalized = normalized.strip("()[]\uFF08\uFF09\u3010\u3011")
+    normalized = _sub(r"\s+", "", normalized)
+    normalized = _sub(r"[.\uFF0E\u3001:\uFF1A\u3002]+$", "", normalized)
+    if len(normalized) != 1:
+        return None
+    if "A" <= normalized <= "Z":
+        return ord(normalized) - ord("A")
+    if "\uFF21" <= normalized <= "\uFF3A":
+        return ord(normalized) - ord("\uFF21")
+    return None
 
 
 class TestTask(_Task, metaclass=_ABCMeta):
@@ -37,22 +53,33 @@ class TestTask(_Task, metaclass=_ABCMeta):
     _TIPS = "div.line-feed"
     _RED_FONTS = 'font[color="red"]'
     _TIPS_BUTTON = "span.tips"
-    _CHOICES = "div.q-answer.choosable"
+    _CHOICES = "div.q-answer.choosable, div.fill-answer.fill-answer-hover"
     _QUESTION_TITLE = "div.q-body"
-    _BLANKS = "input.blank:visible, input.ant-input:visible, input[type='text']:visible, input:not([type]):visible, textarea:visible"
+    _BLANKS = (
+        "div.q-body input, div.q-body textarea, input.blank, input.ant-input, "
+        "input[type='text'], input:not([type]), textarea, [contenteditable='true']"
+    )
     _RESULT = "div.practice-result"
+    _RESULT_MODAL = "div.ant-modal-wrap"
+    _ANALYSIS_CHOICE = "div.q-answer-analysis"
     _SOLUTION = "div.solution"
     _NEXT_BUTTON = "button.next-btn"
     _SUBMIT_BUTTON = "button.submit-btn"
     _PAGER = "div.pager"
     _CURRENT_POSITION = "span.big"
+    _CHOICE_TIMEOUT_MSECS = 30000
+    _ACTION_TIMEOUT_MSECS = 30000
+    _BLANK_TIMEOUT_MSECS = 5000
     _DO_ANSWER_SLEEP_MIN_SECS = 10
     _DO_ANSWER_SLEEP_MAX_SECS = 15
 
     @_final
     async def _test(self, page: _Page) -> bool:
         result = page.locator(self._RESULT)
-        while await result.is_hidden():
+        while (
+            await result.is_hidden()
+            and not await self.__submitted_result_is_ready(page, result)
+        ):
             detail_body = page.locator(self._DETAIL_BODY)
             await detail_body.wait_for()
             question = detail_body.locator(self._QUESTION)
@@ -106,6 +133,9 @@ class TestTask(_Task, metaclass=_ABCMeta):
                             {"position": position, "answer": answer},
                         )
 
+            if choices_count == 0 and blanks_count == 0:
+                _logger.warning(__("No answer elements found for current question."))
+
             action_row = detail_body.locator(self._ACTION_ROW)
             solution = detail_body.locator(self._SOLUTION)
             if not await self.__go_to_next_question_or_submit(
@@ -132,48 +162,128 @@ class TestTask(_Task, metaclass=_ABCMeta):
         return True
 
     @_final
-    async def __fill_blank(self, blanks: _Locator, position: int, answer: str) -> bool:
-        await blanks.last.wait_for()
-        if position < await blanks.count():
-            _logger.debug(
-                __("Checking blank at %(position)d..."),
-                {"position": position},
-            )
-            blank = blanks.nth(position)
-            if await blank.input_value() != "" or not await blank.is_editable():
-                return True
-            _logger.debug(
-                __("Filling blank with answer %(answer)s..."),
-                {"answer": answer},
-            )
-            await blank.page.wait_for_timeout(self.__sleep_seconds * 1000)
-            await blank.fill(answer)
+    async def __submitted_result_is_ready(
+        self,
+        page: _Page,
+        result: _Locator,
+    ) -> bool:
+        modal = page.locator(self._RESULT_MODAL)
+        analysis = page.locator(self._ANALYSIS_CHOICE)
+        modal_visible = await modal.count() > 0 and await modal.last.is_visible()
+        if not modal_visible and await analysis.count() == 0:
+            return False
+        try:
+            await result.last.wait_for(state="visible", timeout=20_000)
             return True
+        except _TimeoutError as e:
+            modal_text = ""
+            if modal_visible:
+                with _suppress(_TimeoutError):
+                    modal_text = _clean_string(
+                        await modal.last.inner_text(timeout=3000),
+                    )
+            _logger.warning(
+                "Submitted question is covered by a result modal; "
+                "stopping repeated answer clicks: text=%r error=%s",
+                modal_text[:200],
+                e,
+            )
+            return modal_visible and await analysis.count() > 0
+
+    @_final
+    async def __fill_blank(self, blanks: _Locator, position: int, answer: str) -> bool:
+        try:
+            await blanks.last.wait_for(
+                state="attached",
+                timeout=self._BLANK_TIMEOUT_MSECS,
+            )
+            if position < await blanks.count():
+                _logger.debug(
+                    __("Checking blank at %(position)d..."),
+                    {"position": position},
+                )
+                blank = blanks.nth(position)
+                _logger.debug(
+                    __("Filling blank with answer %(answer)s..."),
+                    {"answer": answer},
+                )
+                await blank.page.wait_for_timeout(self.__sleep_seconds * 1000)
+                await blank.evaluate(
+                    """
+                    (element, value) => {
+                        if ('value' in element) {
+                            element.value = value;
+                            element.setAttribute('value', value);
+                        } else {
+                            element.textContent = value;
+                        }
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    """,
+                    answer,
+                    timeout=self._BLANK_TIMEOUT_MSECS,
+                )
+                return True
+        except _TimeoutError as e:
+            _logger.warning(__("Timed out while filling blank: %(e)s"), {"e": e})
+            return False
         return False
 
     @_final
     async def __choice_item(self, choices: _Locator, answer: str) -> bool:
         await choices.last.wait_for()
-        for position in range(await choices.count()):
+        choices_count = await choices.count()
+        choice_index = _choice_index_from_answer(answer)
+        if choice_index is not None and choice_index < choices_count:
+            _logger.debug(
+                __("Choicing answer %(answer)s by option index %(position)d..."),
+                {"answer": answer, "position": choice_index + 1},
+            )
+            return await self.__click_choice(choices.nth(choice_index))
+
+        for position in range(choices_count):
             _logger.debug(
                 __("Checking item at %(position)d..."),
                 {"position": position},
             )
             choice = choices.nth(position)
-            class_of_choice = await choice.get_attribute("class") or ""
             clean_answer = _normalize_answer_text(answer)
+            if clean_answer == "":
+                return False
             choice_text = _normalize_answer_text(await choice.inner_text())
-            if (
-                (clean_answer in choice_text or choice_text in clean_answer)
-                and "chosen" not in class_of_choice
-            ):
+            if clean_answer in choice_text or choice_text in clean_answer:
                 _logger.debug(__("Choicing answer %(answer)s..."), {"answer": answer})
-                await choice.click(delay=self.__sleep_seconds * 1000)
-                return True
+                return await self.__click_choice(choice)
         return False
 
     @_final
-    async def __get_answer(
+    async def __click_choice(self, choice: _Locator) -> bool:
+        try:
+            class_of_choice = await choice.get_attribute(
+                "class",
+                timeout=self._CHOICE_TIMEOUT_MSECS,
+            ) or ""
+            if "q-answer-analysis" in class_of_choice:
+                _logger.warning(
+                    "Question is already submitted; skipping repeated choice click.",
+                )
+                return False
+            if (
+                "chosen" not in class_of_choice
+                and "fill-answer-click" not in class_of_choice
+            ):
+                await choice.click(
+                    delay=self.__sleep_seconds * 1000,
+                    timeout=self._CHOICE_TIMEOUT_MSECS,
+                )
+            return True
+        except _TimeoutError as e:
+            _logger.warning(__("Timed out while choosing answer: %(e)s"), {"e": e})
+            return False
+
+    @_final
+    async def __get_answer(  # noqa: PLR0912
         self,
         title: str,
         choice_titles: list[str],
@@ -230,7 +340,11 @@ class TestTask(_Task, metaclass=_ABCMeta):
         for source in deferred_sources:
             try:
                 if source.__class__.__name__ == "OpenAICompatibleAnswerSource":
-                    iterator = source.get_answer(title, blank=len(choice_titles) == 0)
+                    iterator = source.get_answer(
+                        title,
+                        blank=len(choice_titles) == 0,
+                        choices=choice_titles,
+                    )
                 else:
                     iterator = source.get_answer(title)
             except Exception as e:
@@ -255,12 +369,31 @@ class TestTask(_Task, metaclass=_ABCMeta):
         next_button = action_row.locator(self._NEXT_BUTTON)
         submit_button = action_row.locator(self._SUBMIT_BUTTON)
 
-        if await next_button.count() == 1 and await next_button.is_enabled():
-            await next_button.click(delay=self.__sleep_seconds * 1000)
-        elif await submit_button.count() == 1 and await submit_button.is_enabled():
-            await submit_button.click(delay=self.__sleep_seconds * 1000)
-        else:
-            _logger.error(__("Cannot found available next button or submit button."))
+        try:
+            if await next_button.count() == 1 and await next_button.is_enabled(
+                timeout=self._ACTION_TIMEOUT_MSECS,
+            ):
+                await next_button.click(
+                    delay=self.__sleep_seconds * 1000,
+                    timeout=self._ACTION_TIMEOUT_MSECS,
+                )
+            elif await submit_button.count() == 1 and await submit_button.is_enabled(
+                timeout=self._ACTION_TIMEOUT_MSECS,
+            ):
+                await submit_button.click(
+                    delay=self.__sleep_seconds * 1000,
+                    timeout=self._ACTION_TIMEOUT_MSECS,
+                )
+            else:
+                _logger.error(
+                    __("Cannot found available next button or submit button."),
+                )
+                return False
+        except _TimeoutError as e:
+            _logger.error(
+                __("Timed out while clicking next or submit: %(e)s"),
+                {"e": e},
+            )
             return False
 
         if captcha is not None and not await self.__handle_captcha(captcha):

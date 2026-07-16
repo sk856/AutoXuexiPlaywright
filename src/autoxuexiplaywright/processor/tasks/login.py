@@ -17,6 +17,7 @@ from autoxuexiplaywright.event import EventID as _EventID
 from autoxuexiplaywright.event import QrUpdatedEvent as _QrUpdatedEvent
 from autoxuexiplaywright.event import find_event_by_id as _get_event
 from autoxuexiplaywright.localize import gettext as __
+from autoxuexiplaywright.processor.navigation import goto as _goto
 
 
 _logger = _get_logger(__name__)
@@ -35,6 +36,7 @@ class LoginTask(_Task):
     _LOGIN_QR_REFRESH_SELECTOR = "div#app div.login_qrcode_refresh"
     _LOGIN_QR_REFRESH_CLICKABLE_SELECTOR = "span"
     _QR_REFRESH_SECS = 300
+    _COOKIE_LOGIN_TIMEOUT_MSECS = 20_000
 
     @property
     @_override
@@ -58,16 +60,21 @@ class LoginTask(_Task):
 
     @_override
     async def _handle(self, page: _Page, task_name: str) -> bool:
-        _ = await page.goto(self._LOGIN_PAGE)
-        await page.wait_for_load_state()
+        await _goto(page, self._LOGIN_PAGE)
         await page.bring_to_front()
 
         login_check = page.locator(self._LOGIN_CHECK_SELECTOR).first
-        if await login_check.is_visible():
+        try:
+            await login_check.wait_for(
+                state="visible",
+                timeout=self._COOKIE_LOGIN_TIMEOUT_MSECS,
+            )
+        except _TimeoutError:
+            _logger.info(__("Trying to login with QR code."))
+        else:
             _logger.info(__("Login with cookie successfully."))
             return True
 
-        _logger.info(__("Trying to login with QR code."))
         qglogin = page.locator(self._QGLOGIN_SELECTOR).first
         await qglogin.wait_for()
         await _expect(qglogin).to_be_visible()
