@@ -9,7 +9,9 @@ from datetime import datetime as _datetime
 from collections.abc import AsyncGenerator as _AsyncGenerator
 from playwright.async_api import Page as _Page
 from playwright.async_api import Locator as _Locator
+from playwright.async_api import Playwright as _Playwright
 from playwright.async_api import TimeoutError as _TimeoutError
+from playwright.async_api import BrowserContext as _BrowserContext
 from playwright.async_api import expect as _expect
 from playwright.async_api import async_playwright as _playwright
 from autoxuexiplaywright.event import Score as _Score
@@ -134,6 +136,59 @@ async def _iter_tasks_from_status_page(
                 yield task_title
 
 
+async def _run_video_task(
+    playwright: _Playwright,
+    main_context: _BrowserContext,
+    config: _Config,
+    task: VideoTask,
+    task_title: str,
+) -> None:
+    """Run only the video task in a temporary headed context.
+
+    The regular processor stays headless. Video pages are rendered in a
+    separate headed browser because the site rejects or blanks headless video
+    playback. The temporary context receives the current login storage state
+    and is closed immediately after the video task.
+    """
+    logger = _get_logger(__name__)
+    video_browser = await playwright[config.browser_id].launch(
+        channel=config.browser_channel,
+        executable_path=config.executable_path,
+        headless=False,
+        args=(
+            [
+                "--mute-audio",
+                "--window-position=-32000,-32000",
+                "--window-size=1280,900",
+            ]
+            if config.browser_id == "chromium"
+            else ["--mute-audio"]
+        ),
+        proxy=config.proxy,
+        firefox_user_prefs={"media.volume_scale": "0.0"},
+        devtools=False,
+    )
+    video_context = None
+    try:
+        video_context = await video_browser.new_context(
+            storage_state=await main_context.storage_state(),
+        )
+        video_context.set_default_timeout(_STATUS_PAGE_TIMEOUT_MSECS * 60)
+        logger.info("Running video task in a temporary headed browser.")
+        await task.do(await video_context.new_page(), task_title)
+        try:
+            await main_context.add_cookies(await video_context.cookies())
+        except Exception as e:
+            logger.debug("Failed to merge video browser cookies: %s", e)
+    finally:
+        if video_context is not None:
+            for page in list(video_context.pages):
+                if not page.is_closed():
+                    await page.close()
+            await video_context.close()
+        await video_browser.close()
+
+
 async def launch_processor(config: _Config):
     """Launch the processor."""
     logger = _get_logger(__name__)
@@ -142,24 +197,20 @@ async def launch_processor(config: _Config):
     _set_ai_answer_config(config)
     _set_read_history_retention_days(config.read_history_retention_days)
 
-    # ``debug`` keeps Chromium headed for pages that reject headless mode, but
-    # the browser stays off-screen and Playwright Inspector is not enabled.
+    # Keep regular navigation, reading, and tests headless. VideoTask opens a
+    # short-lived headed context only when video playback is required.
     _environ.pop("PWDEBUG", None)
-    browser_args = ["--mute-audio"]
-    if config.debug and config.browser_id == "chromium":
-        browser_args.extend(
-            ["--window-position=-32000,-32000", "--window-size=1280,900"],
-        )
 
     async with _playwright() as p:
         context = await p[config.browser_id].launch_persistent_context(
             _cache(_Path("browser-data")) / config.browser_id,
             channel=config.browser_channel,
             executable_path=config.executable_path,
-            # Video pages reject headless Chromium. Debug mode is explicitly headed.
-            headless=not config.debug,
+            # Video pages use their own headed context below.
+            headless=True,
             # Mute Chromium
-            args=browser_args,
+            args=["--mute-audio"],
+            devtools=False,
             proxy=config.proxy,
             # Mute firefox
             firefox_user_prefs={"media.volume_scale": "0.0"},
@@ -175,6 +226,10 @@ async def launch_processor(config: _Config):
                     __("Processing %(title)s with %(name)s..."),
                     {"title": task_title, "name": task.name},
                 )
+                if isinstance(task, VideoTask):
+                    await _run_video_task(p, context, config, task, task_title)
+                    continue
+
                 pages_to_remove: list[_Page] = []
 
                 # Simply pass pages_to_remove.append is not acceptable by playwright.
