@@ -14,6 +14,7 @@ from playwright.async_api import TimeoutError as _TimeoutError
 from playwright.async_api import BrowserContext as _BrowserContext
 from playwright.async_api import expect as _expect
 from playwright.async_api import async_playwright as _playwright
+from autoxuexiplaywright.sdk import Task as _Task
 from autoxuexiplaywright.event import Score as _Score
 from autoxuexiplaywright.event import EventID as _EventID
 from autoxuexiplaywright.event import FinishedEvent as _FinishedEvent
@@ -143,12 +144,11 @@ async def _run_video_task(
     task: VideoTask,
     task_title: str,
 ) -> None:
-    """Run only the video task in a temporary headed context.
+    """Retry a failed video task in a temporary headed context.
 
-    The regular processor stays headless. Video pages are rendered in a
-    separate headed browser because the site rejects or blanks headless video
-    playback. The temporary context receives the current login storage state
-    and is closed immediately after the video task.
+    The normal attempt runs in the persistent headless context so it keeps the
+    same cookies and site storage as login. This short-lived browser is only a
+    fallback for a video page that still fails to load there.
     """
     logger = _get_logger(__name__)
     video_browser = await playwright[config.browser_id].launch(
@@ -174,7 +174,9 @@ async def _run_video_task(
             storage_state=await main_context.storage_state(),
         )
         video_context.set_default_timeout(_STATUS_PAGE_TIMEOUT_MSECS * 60)
-        logger.info("Running video task in a temporary headed browser.")
+        logger.info(
+            "Headless video task failed; retrying in a temporary headed browser.",
+        )
         await task.do(await video_context.new_page(), task_title)
         try:
             await main_context.add_cookies(await video_context.cookies())
@@ -189,6 +191,27 @@ async def _run_video_task(
         await video_browser.close()
 
 
+async def _run_task_in_context(
+    context: _BrowserContext,
+    task: _Task,
+    task_title: str,
+) -> None:
+    """Run one task and close every page it opens."""
+    pages_to_remove: list[_Page] = []
+
+    def on_new_page(page: _Page):
+        pages_to_remove.append(page)
+
+    context.on("page", on_new_page)
+    try:
+        await task.do(await context.new_page(), task_title)
+    finally:
+        context.remove_listener("page", on_new_page)
+        for page in pages_to_remove:
+            if not page.is_closed():
+                await page.close()
+
+
 async def launch_processor(config: _Config):
     """Launch the processor."""
     logger = _get_logger(__name__)
@@ -197,8 +220,7 @@ async def launch_processor(config: _Config):
     _set_ai_answer_config(config)
     _set_read_history_retention_days(config.read_history_retention_days)
 
-    # Keep regular navigation, reading, and tests headless. VideoTask opens a
-    # short-lived headed context only when video playback is required.
+    # Keep the persistent context headless, including the first video attempt.
     _environ.pop("PWDEBUG", None)
 
     async with _playwright() as p:
@@ -206,7 +228,6 @@ async def launch_processor(config: _Config):
             _cache(_Path("browser-data")) / config.browser_id,
             channel=config.browser_channel,
             executable_path=config.executable_path,
-            # Video pages use their own headed context below.
             headless=True,
             # Mute Chromium
             args=["--mute-audio"],
@@ -226,22 +247,9 @@ async def launch_processor(config: _Config):
                     __("Processing %(title)s with %(name)s..."),
                     {"title": task_title, "name": task.name},
                 )
-                if isinstance(task, VideoTask):
+                await _run_task_in_context(context, task, task_title)
+                if isinstance(task, VideoTask) and task.status.name == "FAILED":
                     await _run_video_task(p, context, config, task, task_title)
-                    continue
-
-                pages_to_remove: list[_Page] = []
-
-                # Simply pass pages_to_remove.append is not acceptable by playwright.
-                def on_new_page(page: _Page):
-                    pages_to_remove.append(page)  # noqa: B023
-
-                context.on("page", on_new_page)
-                await task.do(await context.new_page(), task_title)
-                context.remove_listener("page", on_new_page)
-                for page in pages_to_remove:
-                    if not page.is_closed():
-                        await page.close()
         except Exception as e:
             logger.error(__("Failed to finish tasks because %(e)s"), {"e": e})
         finally:

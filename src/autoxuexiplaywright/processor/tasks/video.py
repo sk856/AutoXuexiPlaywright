@@ -5,9 +5,11 @@ from typing import ClassVar as _ClassVar
 from typing import final as _final
 from typing import override as _override
 from logging import getLogger as _get_logger
+from urllib.parse import urljoin as _urljoin
 from autoxuexiplaywright import APPAUTHOR as _APPAUTHOR
 from autoxuexiplaywright import __version__ as _version
 from playwright.async_api import Page as _Page
+from playwright.async_api import Locator as _Locator
 from playwright.async_api import TimeoutError as _TimeoutError
 from autoxuexiplaywright.sdk import Task as _Task
 from autoxuexiplaywright.sdk import module_entrance as _module
@@ -31,6 +33,8 @@ class VideoTask(_ReadTask):
     _VIDEO_ENTRANCE = 'div[data-data-id="tv-station-header"]>div.right>span.moreText'
     _VIDEO_LIBRARY = "div.more-wrap p.text"
     _VIDEO_TEXT_WRAPPER = "div.textWrapper"
+    _VIDEO_LINK_ATTRIBUTE = "data-link-target"
+    _VIDEO_DETAIL_URL_MARKER = "/lgpage/detail/"
     _VIDEO_CONTENT = "div.gr-video-player, video, audio"
     _VIDEO_CONTENT_TIMEOUT_MSECS = 20_000
     _unavailable_video_titles: _ClassVar[set[str]] = set()
@@ -62,7 +66,8 @@ class VideoTask(_ReadTask):
     async def _video_content_loaded(self, page: _Page, title: str) -> bool:
         try:
             await page.locator(self._VIDEO_CONTENT).first.wait_for(
-                state="attached", timeout=self._VIDEO_CONTENT_TIMEOUT_MSECS,
+                state="attached",
+                timeout=self._VIDEO_CONTENT_TIMEOUT_MSECS,
             )
             return True
         except _TimeoutError as e:
@@ -85,19 +90,81 @@ class VideoTask(_ReadTask):
             )
             return False
 
+    async def _get_video_candidates(
+        self,
+        video_list: _Locator,
+    ) -> list[tuple[_Locator, str, str]]:
+        """Return unread cards with real detail links first."""
+        detail_cards: list[tuple[_Locator, str, str]] = []
+        fallback_cards: list[tuple[_Locator, str, str]] = []
+        for i in range(await video_list.count()):
+            video = video_list.nth(i)
+            title = _clean_string(await video.inner_text())
+            if _has_read("video", title) or title in self._unavailable_video_titles:
+                continue
+            target = await video.get_attribute(self._VIDEO_LINK_ATTRIBUTE) or ""
+            candidate = (video, title, target)
+            if self._VIDEO_DETAIL_URL_MARKER in target:
+                detail_cards.append(candidate)
+            else:
+                fallback_cards.append(candidate)
+        return [*detail_cards, *fallback_cards]
+
+    async def _open_video_page(
+        self,
+        source_page: _Page,
+        card: _Locator,
+        target: str,
+    ) -> _Page:
+        """Open a video detail URL directly, falling back to the card click."""
+        if self._VIDEO_DETAIL_URL_MARKER in target:
+            video_page = await source_page.context.new_page()
+            try:
+                detail_url = _urljoin(source_page.url, target)
+                _logger.info("Opening video detail page directly: %s", detail_url)
+                await _goto(video_page, detail_url)
+                return video_page
+            except Exception as e:
+                _logger.warning(
+                    "Direct video detail navigation failed; using card click: %s",
+                    e,
+                )
+                await video_page.close()
+
+        async with source_page.context.expect_page() as e:
+            await card.click()
+        return await e.value
+
+    async def _open_video_library(self, entrance_page: _Page) -> _Page:
+        """Open the legacy library route when station cards are unavailable."""
+        try:
+            async with entrance_page.context.expect_page(timeout=20_000) as e:
+                await entrance_page.locator(self._VIDEO_LIBRARY).click()
+            return await e.value
+        except _TimeoutError:
+            # Some layouts update the station page instead of opening a tab.
+            return entrance_page
+
     @_override
     async def _handle(self, page: _Page, task_name: str) -> bool:
+        self._unavailable_video_titles.clear()
         await _goto(page, self._MAIN_PAGE)
 
         async with page.context.expect_page() as e:
             await page.locator(self._VIDEO_ENTRANCE).click()
         entrance_page = await e.value
 
-        async with entrance_page.context.expect_page() as e:
-            await entrance_page.locator(self._VIDEO_LIBRARY).click()
-        library_page = await e.value
-
+        # Station cards already contain direct detail URLs. In headless Chromium
+        # the dynamic library route can return lgdata 403 responses, while the
+        # detail page and its HLS media requests load and play normally.
+        library_page = entrance_page
         text_wrappers = library_page.locator(self._VIDEO_TEXT_WRAPPER)
+        try:
+            await text_wrappers.last.wait_for(state="attached", timeout=20_000)
+        except _TimeoutError:
+            library_page = await self._open_video_library(entrance_page)
+            text_wrappers = library_page.locator(self._VIDEO_TEXT_WRAPPER)
+
         while True:
             try:
                 await text_wrappers.last.wait_for(
@@ -112,18 +179,17 @@ class VideoTask(_ReadTask):
                 )
                 break
 
-            for i in range(await text_wrappers.count()):
-                text_wrapper = text_wrappers.nth(i)
-                text = _clean_string(await text_wrapper.inner_text())
-                if _has_read("video", text) or text in self._unavailable_video_titles:
-                    continue
-
+            for text_wrapper, text, target in await self._get_video_candidates(
+                text_wrappers,
+            ):
                 _logger.info(__("Processing video %(title)s"), {"title": text})
                 video_page = None
                 try:
-                    async with library_page.context.expect_page() as e:
-                        await text_wrapper.click()
-                    video_page = await e.value
+                    video_page = await self._open_video_page(
+                        library_page,
+                        text_wrapper,
+                        target,
+                    )
                     if not await self._video_content_loaded(video_page, text):
                         self._unavailable_video_titles.add(text)
                         continue

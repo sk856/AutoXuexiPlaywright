@@ -32,15 +32,15 @@ def _normalize_answer_text(text: str) -> str:
 
 def _choice_index_from_answer(answer: str) -> int | None:
     normalized = _clean_string(answer).strip().upper()
-    normalized = normalized.strip("()[]\uFF08\uFF09\u3010\u3011")
+    normalized = normalized.strip("()[]\uff08\uff09\u3010\u3011")
     normalized = _sub(r"\s+", "", normalized)
     normalized = _sub(r"[.\uFF0E\u3001:\uFF1A\u3002]+$", "", normalized)
     if len(normalized) != 1:
         return None
     if "A" <= normalized <= "Z":
         return ord(normalized) - ord("A")
-    if "\uFF21" <= normalized <= "\uFF3A":
-        return ord(normalized) - ord("\uFF21")
+    if "\uff21" <= normalized <= "\uff3a":
+        return ord(normalized) - ord("\uff21")
     return None
 
 
@@ -67,18 +67,26 @@ class TestTask(_Task, metaclass=_ABCMeta):
     _SUBMIT_BUTTON = "button.submit-btn"
     _PAGER = "div.pager"
     _CURRENT_POSITION = "span.big"
+    _CAPTCHA = (
+        "div#swiper_valid, div#JS_aliyun-captcha-dialog, div#JS_aliyun-captcha-main"
+    )
     _CHOICE_TIMEOUT_MSECS = 30000
     _ACTION_TIMEOUT_MSECS = 30000
     _BLANK_TIMEOUT_MSECS = 5000
+    _CONTROL_WAIT_TIMEOUT_MSECS = 10000
+    _CAPTCHA_WAIT_TIMEOUT_MSECS = 3000
+    _CAPTCHA_PROBE_TIMEOUT_MSECS = 800
+    _TRANSITION_WAIT_TIMEOUT_MSECS = 10000
+    _STATE_POLL_INTERVAL_MSECS = 100
     _DO_ANSWER_SLEEP_MIN_SECS = 10
     _DO_ANSWER_SLEEP_MAX_SECS = 15
 
     @_final
-    async def _test(self, page: _Page) -> bool:
+    async def _test(self, page: _Page) -> bool:  # noqa: PLR0912
         result = page.locator(self._RESULT)
-        while (
-            await result.is_hidden()
-            and not await self.__submitted_result_is_ready(page, result)
+        while await result.is_hidden() and not await self.__submitted_result_is_ready(
+            page,
+            result,
         ):
             detail_body = page.locator(self._DETAIL_BODY)
             await detail_body.wait_for()
@@ -94,9 +102,18 @@ class TestTask(_Task, metaclass=_ABCMeta):
             )
             choices = question.locator(self._CHOICES)
             blanks = question.locator(self._BLANKS)
+            controls = question.locator(f"{self._CHOICES}, {self._BLANKS}")
+            try:
+                await controls.first.wait_for(
+                    state="attached",
+                    timeout=self._CONTROL_WAIT_TIMEOUT_MSECS,
+                )
+            except _TimeoutError:
+                _logger.error(__("Cannot find available answer controls."))
+                return False
 
             tips_button = question.locator(self._TIPS_BUTTON)
-            tips = page.locator(self._TIPS)
+            tips = page.locator(self._TIPS).last
             position = 0
             choices_count = await choices.count()
             blanks_count = await blanks.count()
@@ -138,20 +155,18 @@ class TestTask(_Task, metaclass=_ABCMeta):
 
             action_row = detail_body.locator(self._ACTION_ROW)
             solution = detail_body.locator(self._SOLUTION)
+            pager = page.locator(self._PAGER)
+            total = int((await pager.inner_text()).split("/")[-1])
+            current_position = pager.locator(self._CURRENT_POSITION)
+            current = int(await current_position.inner_text())
             if not await self.__go_to_next_question_or_submit(
                 title,
                 choice_titles,
                 action_row,
                 solution,
-                # TODO: Find stable selector for captcha.
-                None,
             ):
                 return False
 
-            pager = page.locator(self._PAGER)
-            total = int((await pager.inner_text()).split("/")[-1])
-            current_position = pager.locator(self._CURRENT_POSITION)
-            current = int(await current_position.inner_text())
             if current < total:
                 _logger.debug(__("Still needs handling, continuing..."))
                 await _expect(current_position).to_have_text(str(current + 1))
@@ -260,10 +275,13 @@ class TestTask(_Task, metaclass=_ABCMeta):
     @_final
     async def __click_choice(self, choice: _Locator) -> bool:
         try:
-            class_of_choice = await choice.get_attribute(
-                "class",
-                timeout=self._CHOICE_TIMEOUT_MSECS,
-            ) or ""
+            class_of_choice = (
+                await choice.get_attribute(
+                    "class",
+                    timeout=self._CHOICE_TIMEOUT_MSECS,
+                )
+                or ""
+            )
             if "q-answer-analysis" in class_of_choice:
                 _logger.warning(
                     "Question is already submitted; skipping repeated choice click.",
@@ -364,31 +382,18 @@ class TestTask(_Task, metaclass=_ABCMeta):
         choice_titles: list[str],
         action_row: _Locator,
         solution: _Locator,
-        captcha: _Locator | None,
     ) -> bool:
-        next_button = action_row.locator(self._NEXT_BUTTON)
-        submit_button = action_row.locator(self._SUBMIT_BUTTON)
-
+        button = await self.__wait_for_action_button(action_row)
+        if button is None:
+            _logger.error(__("Cannot find available next button or submit button."))
+            return False
+        button_class = await button.get_attribute("class") or ""
+        button_text = _clean_string(await button.inner_text())
         try:
-            if await next_button.count() == 1 and await next_button.is_enabled(
+            await button.click(
+                delay=self.__sleep_seconds * 1000,
                 timeout=self._ACTION_TIMEOUT_MSECS,
-            ):
-                await next_button.click(
-                    delay=self.__sleep_seconds * 1000,
-                    timeout=self._ACTION_TIMEOUT_MSECS,
-                )
-            elif await submit_button.count() == 1 and await submit_button.is_enabled(
-                timeout=self._ACTION_TIMEOUT_MSECS,
-            ):
-                await submit_button.click(
-                    delay=self.__sleep_seconds * 1000,
-                    timeout=self._ACTION_TIMEOUT_MSECS,
-                )
-            else:
-                _logger.error(
-                    __("Cannot found available next button or submit button."),
-                )
-                return False
+            )
         except _TimeoutError as e:
             _logger.error(
                 __("Timed out while clicking next or submit: %(e)s"),
@@ -396,19 +401,92 @@ class TestTask(_Task, metaclass=_ABCMeta):
             )
             return False
 
+        captcha_timeout_msecs = (
+            self._CAPTCHA_WAIT_TIMEOUT_MSECS
+            if "submit-btn" in button_class or "完成" in button_text
+            else self._CAPTCHA_PROBE_TIMEOUT_MSECS
+        )
+        captcha = await self.__find_visible_captcha(
+            action_row.page,
+            captcha_timeout_msecs,
+        )
         if captcha is not None and not await self.__handle_captcha(captcha):
             _logger.error(__("Failed to handle captcha"))
             return False
 
-        if await solution.count() > 0:
+        if await self.__wait_for_solution_or_transition(title, solution):
             _logger.error(__("The answer to the question is wrong."))
             red_fonts = solution.locator(self._RED_FONTS)
             if await red_fonts.count() > 0:
                 await red_fonts.last.wait_for()
                 answers = [_clean_string(i) for i in await red_fonts.all_inner_texts()]
                 await self.__update_answer(title, answers, choice_titles)
-            await next_button.click(delay=self.__sleep_seconds * 1000)
+            next_button = await self.__wait_for_action_button(action_row)
+            if next_button is None:
+                _logger.error(__("Cannot find available next button."))
+                return False
+            await next_button.click(
+                delay=self.__sleep_seconds * 1000,
+                timeout=self._ACTION_TIMEOUT_MSECS,
+            )
         return True
+
+    @_final
+    async def __wait_for_action_button(self, action_row: _Locator) -> _Locator | None:
+        elapsed_msecs = 0
+        while elapsed_msecs < self._ACTION_TIMEOUT_MSECS:
+            for selector in (self._NEXT_BUTTON, self._SUBMIT_BUTTON):
+                button = action_row.locator(selector).first
+                try:
+                    if await button.count() > 0 and await button.is_enabled(
+                        timeout=self._STATE_POLL_INTERVAL_MSECS,
+                    ):
+                        return button
+                except _TimeoutError:
+                    pass
+            await action_row.page.wait_for_timeout(self._STATE_POLL_INTERVAL_MSECS)
+            elapsed_msecs += self._STATE_POLL_INTERVAL_MSECS
+        return None
+
+    @_final
+    async def __find_visible_captcha(
+        self,
+        page: _Page,
+        timeout_msecs: int,
+    ) -> _Locator | None:
+        captcha = page.locator(self._CAPTCHA)
+        elapsed_msecs = 0
+        while elapsed_msecs < timeout_msecs:
+            for position in range(await captcha.count()):
+                candidate = captcha.nth(position)
+                if await candidate.is_visible():
+                    return candidate
+            await page.wait_for_timeout(self._STATE_POLL_INTERVAL_MSECS)
+            elapsed_msecs += self._STATE_POLL_INTERVAL_MSECS
+        return None
+
+    @_final
+    async def __wait_for_solution_or_transition(
+        self,
+        title: str,
+        solution: _Locator,
+    ) -> bool:
+        page = solution.page
+        question_title = page.locator(self._QUESTION_TITLE).first
+        result = page.locator(self._RESULT).first
+        elapsed_msecs = 0
+        while elapsed_msecs < self._TRANSITION_WAIT_TIMEOUT_MSECS:
+            if await solution.count() > 0 and await solution.first.is_visible():
+                return True
+            if await result.is_visible():
+                return False
+            if await question_title.count() > 0 and await question_title.is_visible():
+                current_title = _clean_string(await question_title.inner_text())
+                if current_title != title:
+                    return False
+            await page.wait_for_timeout(self._STATE_POLL_INTERVAL_MSECS)
+            elapsed_msecs += self._STATE_POLL_INTERVAL_MSECS
+        return False
 
     @_final
     async def __handle_captcha(self, captcha: _Locator) -> bool:
