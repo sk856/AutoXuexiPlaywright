@@ -42,7 +42,7 @@ _QApplication.setOrganizationDomain("github.com")
 _ = _QApplication.setStyle("fusion")
 
 
-def launch(config: _Config):
+def launch(config: _Config, config_path: _Path | None = None):
     """Launch the GUI."""
     app = _QApplication()
     path = _QLibraryInfo.location(_QLibraryInfo.LibraryPath.TranslationsPath)
@@ -54,7 +54,7 @@ def launch(config: _Config):
     if resourceContent is not None:
         _ = _QResource.registerResourceData(resourceContent)
 
-    main = _MainWindow(config)
+    main = _MainWindow(config, config_path)
     main.show()
 
     _ = app.exec()

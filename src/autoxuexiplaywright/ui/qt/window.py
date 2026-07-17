@@ -111,7 +111,12 @@ class MainWindow(_QTranslicentBackgroundFramelessWidget[_MainWindowContentWidget
     __logForwardSignal: _ClassVar[_QSignal] = _QSignal(str)
 
     @_override
-    def __init__(self, config: _Config, parent: _QWidget | None = None):
+    def __init__(
+        self,
+        config: _Config,
+        configPath: _Path | None = None,
+        parent: _QWidget | None = None,
+    ):
         super().__init__(parent)
         self.setWindowFlag(_Qt.WindowType.Window)
 
@@ -134,7 +139,7 @@ class MainWindow(_QTranslicentBackgroundFramelessWidget[_MainWindowContentWidget
         self.__trayIcon = _QSystemTrayIcon(self)
         self.__setUpTrayIcon()
 
-        self.__settingWindow = _SettingWindow(content)
+        self.__settingWindow = _SettingWindow(content, configPath)
         self.__settingWindow.setProcessorConfig(config)
         _ = (
             content.operationWidget()

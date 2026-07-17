@@ -6,11 +6,11 @@ from typing import override as _override
 from PySide6.QtCore import Slot as _Slot
 from PySide6.QtWidgets import QWidget as _QWidget
 from PySide6.QtWidgets import QHBoxLayout as _QHBoxLayout
-from autoxuexiplaywright.ui.qt.qlabelwithplaintextedit import (
-    QLabelWithPlainTextEdit as _QLabelWithPlainTextEdit,
-)
 from autoxuexiplaywright.ui.qt.settingconfigproxywidget import (
     SettingConfigProxyWidget as _SettingConfigProxyWidget,
+)
+from autoxuexiplaywright.ui.qt.qlabelwithmultiselectcombobox import (
+    QLabelWithMultiSelectComboBox as _QLabelWithMultiSelectComboBox,
 )
 
 
@@ -27,7 +27,7 @@ class SettingConfigComplexItemContainer(_QWidget):
         self._setUpProxySetter()
         self.layout().addWidget(self._proxySetter)
 
-        self._skippedItemsSetter = _QLabelWithPlainTextEdit(self)
+        self._skippedItemsSetter = _QLabelWithMultiSelectComboBox(self)
         self._setUpSkippedItemsSelector()
         self.layout().addWidget(self._skippedItemsSetter)
 
@@ -49,6 +49,6 @@ class SettingConfigComplexItemContainer(_QWidget):
         """The proxy setter widget in the widget."""
         return self._proxySetter
 
-    def skippedItemsSetter(self) -> _QLabelWithPlainTextEdit:
-        """The skipped items setter widget in the widget."""
+    def skippedItemsSetter(self) -> _QLabelWithMultiSelectComboBox:
+        """The skipped items selector widget in the widget."""
         return self._skippedItemsSetter

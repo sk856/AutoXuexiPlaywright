@@ -1,4 +1,4 @@
-"""Widget contains procesor settings."""
+"""Widget contains processor settings."""
 # pyright: reportAny=false
 
 from typing import ClassVar as _ClassVar
@@ -8,11 +8,15 @@ from PySide6.QtGui import QRegularExpressionValidator as _QRegularExpressionVali
 from PySide6.QtCore import QDir as _QDir
 from PySide6.QtCore import Slot as _Slot
 from PySide6.QtCore import QFile as _QFile
+from PySide6.QtCore import Signal as _Signal
+from PySide6.QtCore import QThread as _QThread
 from PySide6.QtCore import QFileInfo as _QFileInfo
 from PySide6.QtCore import QRegularExpression as _QRegularExpression
 from PySide6.QtWidgets import QWidget as _QWidget
+from PySide6.QtWidgets import QComboBox as _QComboBox
 from PySide6.QtWidgets import QLineEdit as _QLineEdit
 from PySide6.QtWidgets import QFileDialog as _QFileDialog
+from PySide6.QtWidgets import QHBoxLayout as _QHBoxLayout
 from PySide6.QtWidgets import QMessageBox as _QMessageBox
 from PySide6.QtWidgets import QPushButton as _QPushButton
 from PySide6.QtWidgets import QVBoxLayout as _QVBoxLayout
@@ -30,11 +34,17 @@ from autoxuexiplaywright.ui.qt.qlabelwithcombobox import (
 from autoxuexiplaywright.ui.qt.qlabelwithlineedit import (
     QLabelWithLineEdit as _QLabelWithLineEdit,
 )
+from autoxuexiplaywright.ui.qt.coloredarrowcombobox import (
+    ColoredArrowComboBox as _ColoredArrowComboBox,
+)
 from autoxuexiplaywright.ui.qt.qlabelwithpathsetter import (
     QLabelWithPathSetter as _QLabelWithPathSetter,
 )
 from autoxuexiplaywright.ui.qt.settingconfigcomplexitemcontainer import (
     SettingConfigComplexItemContainer as _SettingConfigComplexItemContainer,
+)
+from autoxuexiplaywright.processor.answer_sources.openai_compatible import (
+    fetch_ai_models_sync as _fetch_ai_models,
 )
 from autoxuexiplaywright.processor.answer_sources.openai_compatible import (
     test_ai_answer_config_sync as _test_ai_answer_config,
@@ -50,8 +60,36 @@ def _toNoneIfFalse[T](i: T) -> T | None:
 
 
 @_final
+class _AIModelFetchThread(_QThread):
+    resultReady = _Signal(bool, list, str)
+
+    def __init__(self, config: _Config, parent: _QWidget | None = None):
+        super().__init__(parent)
+        self._config = config
+
+    @_override
+    def run(self):
+        success, models, message = _fetch_ai_models(self._config)
+        self.resultReady.emit(success, models, message)
+
+
+@_final
+class _AIAnswerTestThread(_QThread):
+    resultReady = _Signal(bool, str)
+
+    def __init__(self, config: _Config, parent: _QWidget | None = None):
+        super().__init__(parent)
+        self._config = config
+
+    @_override
+    def run(self):
+        success, message = _test_ai_answer_config(self._config)
+        self.resultReady.emit(success, message)
+
+
+@_final
 class SettingConfigWidget(_QWidget):
-    """Widget contains procesor settings."""
+    """Widget contains processor settings."""
 
     _VALID_BROWSER_NAME_MAPS: _ClassVar[dict[str, _BrowserType]] = {
         __("Firefox"): "firefox",
@@ -75,10 +113,21 @@ class SettingConfigWidget(_QWidget):
         ),
     )
     _READ_HISTORY_RETENTION_DAYS: _ClassVar[tuple[int, ...]] = (3, 7, 15, 30)
+    _SKIPPED_TASK_GROUPS: _ClassVar[dict[str, tuple[str, tuple[str, ...]]]] = {
+        "article": (__("Read articles"), ("我要选读文章",)),
+        "video": (
+            __("Watch videos"),
+            ("视听学习", "视听学习时长", "我要视听学习"),
+        ),
+        "daily_test": (__("Daily test"), ("每日答题",)),
+    }
 
     @_override
-    def __init__(self, parent: _QWidget | None = None):
+    def __init__(self, parent: _QWidget | None = None):  # noqa: PLR0915
         super().__init__(parent)
+        self._aiModelFetchThread: _AIModelFetchThread | None = None
+        self._aiAnswerTestThread: _AIAnswerTestThread | None = None
+        self._unknownSkippedItems: list[str] = []
         self.setLayout(_QVBoxLayout(self))
 
         self._browserSelector = _QLabelWithCombobox(self)
@@ -121,20 +170,26 @@ class SettingConfigWidget(_QWidget):
         self._setUpAiAnswerApiKeySetter()
         self.layout().addWidget(self._aiAnswerApiKeySetter)
 
-        self._aiAnswerModelSetter = _QLabelWithLineEdit(self)
-        self._setUpAiAnswerModelSetter()
-        self.layout().addWidget(self._aiAnswerModelSetter)
+        self._aiAnswerModelSelector = _QLabelWithCombobox(self)
+        self._setUpAiAnswerModelSelector()
+        self.layout().addWidget(self._aiAnswerModelSelector)
 
+        self._aiButtonLayout = _QHBoxLayout()
+        self._aiButtonLayout.addStretch(1)
+        self._aiAnswerFetchButton = _QPushButton(self)
+        self._setUpAiAnswerFetchButton()
+        self._aiButtonLayout.addWidget(self._aiAnswerFetchButton)
         self._aiAnswerTestButton = _QPushButton(self)
         self._setUpAiAnswerTestButton()
-        self.layout().addWidget(self._aiAnswerTestButton)
+        self._aiButtonLayout.addWidget(self._aiAnswerTestButton)
+        self.layout().addLayout(self._aiButtonLayout)
 
         self._complexItemContainer = _SettingConfigComplexItemContainer(self)
         self._setUpComplexItemContainer()
         self.layout().addWidget(self._complexItemContainer)
 
         _ = self.objectNameChanged.connect(self._refreshObjectName)
-        _ = self.setProperty("contaienr", True)
+        _ = self.setProperty("container", True)
 
     @_Slot(str, result=None)
     def _refreshObjectName(self, objectName: str):
@@ -150,7 +205,8 @@ class SettingConfigWidget(_QWidget):
         self._aiAnswerChecker.setObjectName(objectName + "-ai-answer-checker")
         self._aiAnswerBaseUrlSetter.setObjectName(objectName + "-ai-answer-base-url")
         self._aiAnswerApiKeySetter.setObjectName(objectName + "-ai-answer-api-key")
-        self._aiAnswerModelSetter.setObjectName(objectName + "-ai-answer-model")
+        self._aiAnswerModelSelector.setObjectName(objectName + "-ai-answer-model")
+        self._aiAnswerFetchButton.setObjectName(objectName + "-ai-answer-fetch-models")
         self._aiAnswerTestButton.setObjectName(objectName + "-ai-answer-test")
         self._complexItemContainer.setObjectName(objectName + "-complex-item-container")
 
@@ -173,8 +229,9 @@ class SettingConfigWidget(_QWidget):
     @_Slot(int, result=None)
     def _onBrowserSelectorChanged(self, index: int):
         item = self._browserSelector.selectorWidget().itemData(index)
-        channelSupported = _isBrowserChannelSupported(item)
-        self._channelSelector.selectorWidget().setEnabled(channelSupported)
+        self._channelSelector.selectorWidget().setEnabled(
+            _isBrowserChannelSupported(item),
+        )
 
     def _setUpBrowserSelector(self):
         self._browserSelector.labelWidget().setText(__("Browser:"))
@@ -207,7 +264,9 @@ class SettingConfigWidget(_QWidget):
         self._readHistoryRetentionSelector.setSelectorWidgetContents(**contents)
 
     def _setUpExecutablePathSetter(self):
-        self._executablePathSetter.titleWidget().setText(__("Browser Executable Path:"))
+        self._executablePathSetter.titleWidget().setText(
+            __("Browser Executable Path:"),
+        )
         self._executablePathSetter.browseButton().setText(__("Browse..."))
         _ = self._executablePathSetter.browseButton().clicked.connect(
             self._onExecutablePathSetterBrowseButtonClicked,
@@ -219,7 +278,9 @@ class SettingConfigWidget(_QWidget):
     def _setUpAiAnswerBaseUrlSetter(self):
         self._aiAnswerBaseUrlSetter.titleWidget().setText(__("AI API Base URL:"))
         self._aiAnswerBaseUrlSetter.lineEditWidget().setToolTip(
-            __("OpenAI compatible API base URL, for example https://api.openai.com or http://127.0.0.1:8000/v1."),
+            __(
+                "OpenAI compatible API base URL, for example https://api.openai.com or http://127.0.0.1:8000/v1.",
+            ),
         )
 
     def _setUpAiAnswerApiKeySetter(self):
@@ -228,24 +289,31 @@ class SettingConfigWidget(_QWidget):
             _QLineEdit.EchoMode.PasswordEchoOnEdit,
         )
 
-    def _setUpAiAnswerModelSetter(self):
-        self._aiAnswerModelSetter.titleWidget().setText(__("AI Model:"))
+    def _setUpAiAnswerModelSelector(self):
+        generic = self._aiAnswerModelSelector.selectorWidget()
+        modelSelector = _ColoredArrowComboBox(self._aiAnswerModelSelector)
+        modelSelector.setSizePolicy(generic.sizePolicy())
+        self._aiAnswerModelSelector.layout().replaceWidget(generic, modelSelector)
+        generic.deleteLater()
+        self._aiAnswerModelSelector._selectorWidget = modelSelector
+        self._aiAnswerModelSelector.labelWidget().setText(__("AI Model:"))
+        modelSelector.setEditable(True)
+        modelSelector.setInsertPolicy(_QComboBox.InsertPolicy.NoInsert)
+        modelSelector.setDuplicatesEnabled(False)
+        modelSelector.setToolTip(__("Model id sent to the OpenAI-compatible API."))
+
+    def _setUpAiAnswerFetchButton(self):
+        self._aiAnswerFetchButton.setText(__("Fetch AI models"))
+        self._aiAnswerFetchButton.setToolTip(
+            __("Fetch available model ids from the configured /models endpoint."),
+        )
+        _ = self._aiAnswerFetchButton.clicked.connect(
+            self._onAiAnswerFetchButtonClicked,
+        )
 
     def _setUpAiAnswerTestButton(self):
         self._aiAnswerTestButton.setText(__("Test AI API"))
         _ = self._aiAnswerTestButton.clicked.connect(self._onAiAnswerTestButtonClicked)
-
-    @_Slot(result=None)
-    def _onAiAnswerTestButtonClicked(self):
-        self._aiAnswerTestButton.setEnabled(False)
-        self._aiAnswerTestButton.setText(__("Testing..."))
-        success, message = _test_ai_answer_config(self.toConfig())
-        self._aiAnswerTestButton.setEnabled(True)
-        self._aiAnswerTestButton.setText(__("Test AI API"))
-        if success:
-            _QMessageBox.information(self, __("AI API test"), message)
-        else:
-            _QMessageBox.warning(self, __("AI API test"), message)
 
     def _setUpComplexItemContainer(self):
         proxySetter = self._complexItemContainer.proxySetter()
@@ -259,9 +327,80 @@ class SettingConfigWidget(_QWidget):
 
         skippedItemsSetter = self._complexItemContainer.skippedItemsSetter()
         skippedItemsSetter.titleWidget().setText(__("Skipped items:"))
-        skippedItemsSetter.textEditWidget().setToolTip(
-            __("Put items to be skipped one by one here."),
+        skippedItemsSetter.comboBox().setEmptyText(__("No skipped items"))
+        skippedItemsSetter.comboBox().setToolTip(
+            __("Select one or more task groups to skip."),
         )
+        for groupId, (label, _) in self._SKIPPED_TASK_GROUPS.items():
+            skippedItemsSetter.comboBox().addCheckItem(label, groupId)
+
+    @_Slot(result=None)
+    def _onAiAnswerFetchButtonClicked(self):
+        if (
+            self._aiModelFetchThread is not None
+            and self._aiModelFetchThread.isRunning()
+        ):
+            return
+        self._aiAnswerFetchButton.setEnabled(False)
+        self._aiAnswerFetchButton.setText(__("Fetching..."))
+        thread = _AIModelFetchThread(self.toConfig(), self)
+        self._aiModelFetchThread = thread
+        _ = thread.resultReady.connect(self._onAiAnswerModelsFetched)
+        _ = thread.finished.connect(thread.deleteLater)
+        _ = thread.finished.connect(lambda: self._clearAiModelFetchThread(thread))
+        thread.start()
+
+    def _clearAiModelFetchThread(self, thread: _AIModelFetchThread):
+        if self._aiModelFetchThread is thread:
+            self._aiModelFetchThread = None
+
+    @_Slot(bool, list, str, result=None)
+    def _onAiAnswerModelsFetched(self, success: bool, models: list, message: str):
+        self._aiAnswerFetchButton.setEnabled(True)
+        self._aiAnswerFetchButton.setText(__("Fetch AI models"))
+        if success:
+            modelSelector = self._aiAnswerModelSelector.selectorWidget()
+            currentModel = modelSelector.currentText().strip()
+            modelSelector.blockSignals(True)
+            modelSelector.clear()
+            for model in models:
+                modelSelector.addItem(model, model)
+            if currentModel and currentModel not in models:
+                modelSelector.insertItem(0, currentModel, currentModel)
+            modelSelector.setCurrentText(currentModel if currentModel else models[0])
+            modelSelector.blockSignals(False)
+            _QMessageBox.information(self, __("Fetch AI models"), message)
+        else:
+            _QMessageBox.warning(self, __("Fetch AI models"), message)
+
+    @_Slot(result=None)
+    def _onAiAnswerTestButtonClicked(self):
+        if (
+            self._aiAnswerTestThread is not None
+            and self._aiAnswerTestThread.isRunning()
+        ):
+            return
+        self._aiAnswerTestButton.setEnabled(False)
+        self._aiAnswerTestButton.setText(__("Testing..."))
+        thread = _AIAnswerTestThread(self.toConfig(), self)
+        self._aiAnswerTestThread = thread
+        _ = thread.resultReady.connect(self._onAiAnswerTestFinished)
+        _ = thread.finished.connect(thread.deleteLater)
+        _ = thread.finished.connect(lambda: self._clearAiAnswerTestThread(thread))
+        thread.start()
+
+    def _clearAiAnswerTestThread(self, thread: _AIAnswerTestThread):
+        if self._aiAnswerTestThread is thread:
+            self._aiAnswerTestThread = None
+
+    @_Slot(bool, str, result=None)
+    def _onAiAnswerTestFinished(self, success: bool, message: str):
+        self._aiAnswerTestButton.setEnabled(True)
+        self._aiAnswerTestButton.setText(__("Test AI API"))
+        if success:
+            _QMessageBox.information(self, __("AI API test"), message)
+        else:
+            _QMessageBox.warning(self, __("AI API test"), message)
 
     def browserSelector(self) -> _QLabelWithCombobox:
         """The widget to config browser."""
@@ -276,11 +415,11 @@ class SettingConfigWidget(_QWidget):
         return self._debugChecker
 
     def guiChecker(self) -> _QLabelWithCheckbox:
-        """The widget to config gui mode."""
+        """The widget to config GUI mode."""
         return self._guiChecker
 
     def complexItemContainer(self) -> _SettingConfigComplexItemContainer:
-        """The widget contains complex settings items."""
+        """The widget containing complex settings items."""
         return self._complexItemContainer
 
     def applyProcessorConfig(self, config: _Config):
@@ -295,9 +434,7 @@ class SettingConfigWidget(_QWidget):
         channelSelector.setEnabled(_isBrowserChannelSupported(config.browser_id))
 
         self._debugChecker.checkerWidget().setChecked(config.debug)
-
         self._guiChecker.checkerWidget().setChecked(config.gui)
-
         self._autoStartChecker.checkerWidget().setChecked(config.auto_start)
 
         readHistoryRetentionSelector = (
@@ -316,27 +453,37 @@ class SettingConfigWidget(_QWidget):
         self._executablePathSetter.pathDisplayWidget().setText(executablePath)
 
         self._aiAnswerChecker.checkerWidget().setChecked(config.ai_answer_enabled)
-        self._aiAnswerBaseUrlSetter.lineEditWidget().setText(
-            config.ai_answer_base_url,
-        )
+        self._aiAnswerBaseUrlSetter.lineEditWidget().setText(config.ai_answer_base_url)
         self._aiAnswerApiKeySetter.lineEditWidget().setText(config.ai_answer_api_key)
-        self._aiAnswerModelSetter.lineEditWidget().setText(config.ai_answer_model)
+        modelSelector = self._aiAnswerModelSelector.selectorWidget()
+        modelSelector.setCurrentText(config.ai_answer_model)
 
         proxySetter = self._complexItemContainer.proxySetter()
         server = config.proxy.get("server", "") if config.proxy is not None else ""
         proxySetter.serverWidget().lineEditWidget().setText(server)
         bypass = config.proxy.get("bypass", "") if config.proxy is not None else ""
-        bypass = bypass if bypass is not None else ""
-        proxySetter.bypassWidget().lineEditWidget().setText(bypass)
+        proxySetter.bypassWidget().lineEditWidget().setText(bypass or "")
         username = config.proxy.get("username", "") if config.proxy is not None else ""
-        username = username if username is not None else ""
-        proxySetter.usernameWidget().lineEditWidget().setText(username)
+        proxySetter.usernameWidget().lineEditWidget().setText(username or "")
         password = config.proxy.get("password", "") if config.proxy is not None else ""
-        password = password if password is not None else ""
-        proxySetter.passwordWidget().lineEditWidget().setText(password)
+        proxySetter.passwordWidget().lineEditWidget().setText(password or "")
 
-        self._complexItemContainer.skippedItemsSetter().textEditWidget().setPlainText(
-            "\n".join(config.skipped),
+        configuredSkipped = {
+            item for item in (config.skipped or []) if isinstance(item, str) and item
+        }
+        allKnownSkipped = {
+            title
+            for _, (_, titles) in self._SKIPPED_TASK_GROUPS.items()
+            for title in titles
+        }
+        self._unknownSkippedItems = sorted(configuredSkipped - allKnownSkipped)
+        selectedGroups = [
+            groupId
+            for groupId, (_, taskTitles) in self._SKIPPED_TASK_GROUPS.items()
+            if any(title in configuredSkipped for title in taskTitles)
+        ]
+        self._complexItemContainer.skippedItemsSetter().comboBox().setSelectedData(
+            selectedGroups,
         )
 
     def toConfig(self) -> _Config:
@@ -349,13 +496,9 @@ class SettingConfigWidget(_QWidget):
         browserChannel = (
             None if not _isBrowserChannelSupported(browserId) else browserChannel
         )
-
         debug = self._debugChecker.checkerWidget().isChecked()
-
         gui = self._guiChecker.checkerWidget().isChecked()
-
         autoStart = self._autoStartChecker.checkerWidget().isChecked()
-
         readHistoryRetentionDays = (
             self._readHistoryRetentionSelector.selectorWidget().currentData()
         )
@@ -382,13 +525,21 @@ class SettingConfigWidget(_QWidget):
             proxy["password"] = password
         proxy = _toNoneIfFalse(proxy)
 
-        skippedWidget = self._complexItemContainer.skippedItemsSetter().textEditWidget()
-        skipped = skippedWidget.toPlainText().splitlines()
+        selectedGroups = (
+            self._complexItemContainer.skippedItemsSetter().comboBox().selectedData()
+        )
+        skipped: list[str] = list(self._unknownSkippedItems)
+        for groupId in selectedGroups:
+            group = self._SKIPPED_TASK_GROUPS.get(groupId)
+            if group is not None:
+                skipped.extend(group[1])
 
         aiAnswerEnabled = self._aiAnswerChecker.checkerWidget().isChecked()
         aiAnswerBaseUrl = self._aiAnswerBaseUrlSetter.lineEditWidget().text().strip()
         aiAnswerApiKey = self._aiAnswerApiKeySetter.lineEditWidget().text().strip()
-        aiAnswerModel = self._aiAnswerModelSetter.lineEditWidget().text().strip()
+        aiAnswerModel = (
+            self._aiAnswerModelSelector.selectorWidget().currentText().strip()
+        )
 
         return _Config(
             browserId,

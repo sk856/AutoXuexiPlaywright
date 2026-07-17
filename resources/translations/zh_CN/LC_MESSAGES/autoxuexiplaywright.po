@@ -573,3 +573,71 @@ msgstr ""
 msgid "Please scan QR code at %(path)s to login."
 msgstr "请扫描位于 %(path)s 的二维码完成登录。"
 
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Read articles"
+msgstr "阅读文章"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Watch videos"
+msgstr "观看视频"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Daily test"
+msgstr "每日答题"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "No skipped items"
+msgstr "未跳过任何项目"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Select one or more task groups to skip."
+msgstr "选择一个或多个要跳过的任务组。"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Fetch AI models"
+msgstr "获取 AI 模型"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Fetching..."
+msgstr "正在获取。。。"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+#, python-format
+msgid "Fetched %(count)d AI models."
+msgstr "已获取 %(count)d 个 AI 模型。"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+#, python-format
+msgid "Failed to fetch AI models: %(e)s"
+msgstr "获取 AI 模型失败：%(e)s"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "AI API base URL is empty."
+msgstr "AI 接口地址为空。"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "AI API key is empty."
+msgstr "AI 接口密钥为空。"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Model id sent to the OpenAI-compatible API."
+msgstr "发送到 OpenAI 兼容接口的模型 ID。"
+
+#: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py
+msgid "Fetch available model ids from the configured /models endpoint."
+msgstr "从配置的 /models 接口获取可用模型 ID。"
+
+#: src/autoxuexiplaywright/ui/qt/settingwindow.py
+msgid "Save settings"
+msgstr "保存设置"
+
+#: src/autoxuexiplaywright/ui/qt/settingwindow.py
+#, python-format
+msgid "Failed to save settings: %(e)s"
+msgstr "保存设置失败：%(e)s"
+
+#: src/autoxuexiplaywright/ui/qt/settingwindow.py
+#, python-format
+msgid "Settings saved to %(path)s"
+msgstr "设置已保存到 %(path)s"
