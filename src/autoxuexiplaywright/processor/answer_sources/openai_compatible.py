@@ -47,6 +47,69 @@ def _chat_completions_url(base_url: str) -> str:
     return base_url + "/v1/chat/completions"
 
 
+def _models_url(base_url: str) -> str:
+    """Build the OpenAI-compatible model-list endpoint."""
+    base_url = base_url.strip().rstrip("/")
+    if base_url.endswith("/chat/completions"):
+        base_url = base_url[: -len("/chat/completions")]
+    if base_url.endswith("/v1"):
+        return base_url + "/models"
+    return base_url + "/v1/models"
+
+
+def _request_models(config: _Config, timeout: int = _DEFAULT_TIMEOUT_SECS) -> list[str]:
+    request = _Request(  # noqa: S310
+        _models_url(config.ai_answer_base_url),
+        headers={
+            "Authorization": "Bearer " + config.ai_answer_api_key.strip(),
+            "Accept": "application/json",
+        },
+        method="GET",
+    )
+    with _urlopen(request, timeout=timeout) as response:  # noqa: S310
+        response_json = _json.loads(response.read().decode("utf-8"))
+    data = response_json.get("data", [])
+    if not isinstance(data, list):
+        raise ValueError("AI models response data is not a list")
+    models = sorted(
+        {
+            item["id"].strip()
+            for item in data
+            if isinstance(item, dict)
+            and isinstance(item.get("id"), str)
+            and item["id"].strip()
+        },
+    )
+    if not models:
+        raise ValueError("AI models response contains no model ids")
+    return models
+
+
+def fetch_ai_models_sync(config: _Config) -> tuple[bool, list[str], str]:
+    """Fetch model ids from an OpenAI-compatible ``/models`` endpoint."""
+    if config.ai_answer_base_url.strip() == "":
+        return False, [], __("AI API base URL is empty.")
+    if config.ai_answer_api_key.strip() == "":
+        return False, [], __("AI API key is empty.")
+    try:
+        models = _request_models(config, 15)
+    except Exception as e:
+        return (
+            False,
+            [],
+            __("Failed to fetch AI models: %(e)s")
+            % {
+                "e": _format_ai_error(e),
+            },
+        )
+    return True, models, __("Fetched %(count)d AI models.") % {"count": len(models)}
+
+
+async def fetch_ai_models(config: _Config) -> tuple[bool, list[str], str]:
+    """Fetch model ids without blocking the asyncio event loop."""
+    return await _asyncio.to_thread(fetch_ai_models_sync, config)
+
+
 def _request_chat_completion(
     prompt: str,
     system_prompt: str,

@@ -102,7 +102,7 @@ def main():
             __("GUI mode enabled: %(gui)s"),
             {"gui": config.gui},
         )
-        _launch(config)
+        _launch(config, config_path)
     else:
         _launch_tui(config)
 

@@ -4,15 +4,17 @@
 import json
 from typing import final as _final
 from typing import override as _override
+from pathlib import Path as _Path
 from dataclasses import asdict as _asDict
 from PySide6.QtGui import Qt as _Qt
 from PySide6.QtCore import Slot as _Slot
 from PySide6.QtWidgets import QFrame as _QFrame
 from PySide6.QtWidgets import QLabel as _QLabel
 from PySide6.QtWidgets import QWidget as _QWidget
-from PySide6.QtWidgets import QFileDialog as _QFileDialog
+from PySide6.QtWidgets import QMessageBox as _QMessageBox
 from PySide6.QtWidgets import QVBoxLayout as _QVBoxLayout
 from autoxuexiplaywright.config import Config as _Config
+from autoxuexiplaywright.storage import get_config_path as _getConfigPath
 from autoxuexiplaywright.localize import gettext as __
 from autoxuexiplaywright.ui.qt.settingconfigwidget import (
     SettingConfigWidget as _SettingConfigWidget,
@@ -28,8 +30,13 @@ from autoxuexiplaywright.ui.qt.qtranslucentbackgroundframelesswidget import (
 @_final
 class _SettingWindowContentWidget(_QFrame):
     @_override
-    def __init__(self, parent: _QWidget | None = None):
+    def __init__(
+        self,
+        parent: _QWidget | None = None,
+        configPath: _Path | None = None,
+    ):
         super().__init__(parent)
+        self._configPath = configPath or _getConfigPath(_Path("config.json"))
         self.setLayout(_QVBoxLayout(self))
 
         self._titleWidget = _QLabel(__("Settings"), self)
@@ -70,7 +77,25 @@ class _SettingWindowContentWidget(_QFrame):
     def _onSaveButtonClicked(self):
         configDict = _asDict(self._configWidget.toConfig())
         configJson = json.dumps(configDict, ensure_ascii=False, indent=4)
-        _QFileDialog.saveFileContent(configJson.encode(), "config.json", self)
+        try:
+            self._configPath.parent.mkdir(parents=True, exist_ok=True)
+            temporaryPath = self._configPath.with_name(
+                self._configPath.name + ".tmp",
+            )
+            temporaryPath.write_text(configJson, encoding="utf-8")
+            temporaryPath.replace(self._configPath)
+        except OSError as e:
+            _QMessageBox.critical(
+                self,
+                __("Save settings"),
+                __("Failed to save settings: %(e)s") % {"e": e},
+            )
+            return
+        _QMessageBox.information(
+            self,
+            __("Save settings"),
+            __("Settings saved to %(path)s") % {"path": self._configPath},
+        )
 
     def operationWidget(self) -> _SettingOperationWidget:
         """Widget to save or discard settings."""
@@ -92,12 +117,16 @@ class SettingWindow(
     """Widget to allow editing processor settings."""
 
     @_override
-    def __init__(self, parent: _QWidget | None = None):
+    def __init__(
+        self,
+        parent: _QWidget | None = None,
+        configPath: _Path | None = None,
+    ):
         super().__init__(parent)
         self.setWindowFlag(_Qt.WindowType.Dialog)
         self.setWindowModality(_Qt.WindowModality.WindowModal)
 
-        content = _SettingWindowContentWidget(parent)
+        content = _SettingWindowContentWidget(parent, configPath)
         self.setContentWidget(content)
         self.setPseudoCaptionWidget(content.titleWidget())
         _ = content.operationWidget().cancelButton().clicked.connect(self.close)
