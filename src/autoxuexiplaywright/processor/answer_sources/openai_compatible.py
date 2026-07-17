@@ -50,6 +50,8 @@ def _chat_completions_url(base_url: str) -> str:
 def _models_url(base_url: str) -> str:
     """Build the OpenAI-compatible model-list endpoint."""
     base_url = base_url.strip().rstrip("/")
+    if base_url.endswith("/models"):
+        return base_url
     if base_url.endswith("/chat/completions"):
         base_url = base_url[: -len("/chat/completions")]
     if base_url.endswith("/v1"):

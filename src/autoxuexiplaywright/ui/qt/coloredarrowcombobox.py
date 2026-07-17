@@ -20,6 +20,12 @@ class ColoredArrowComboBox(_QComboBox):
     def __init__(self, parent: _QWidget | None = None):
         """Initialize the editable selector and reserve room for its arrow."""
         super().__init__(parent)
+        self.setEditable(True)
+
+    @_override
+    def setEditable(self, editable: bool):
+        """Keep text clear of the custom arrow whenever editing is enabled."""
+        super().setEditable(editable)
         lineEdit = self.lineEdit()
         if lineEdit is not None:
             lineEdit.setTextMargins(0, 0, 28, 0)
