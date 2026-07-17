@@ -21,6 +21,15 @@ from autoxuexiplaywright.processor.captcha_handlers.utils import (
 _logger = _get_logger(__name__)
 
 
+async def _first_visible(candidates: _Locator) -> _Locator | None:
+    """Return the first visible locator from a collection of candidates."""
+    for index in range(await candidates.count()):
+        candidate = candidates.nth(index)
+        if await candidate.is_visible():
+            return candidate
+    return None
+
+
 @_module(_Version.parse(_version))
 @_final
 class DragCaptchaHandler(_CaptchaHandler):
@@ -54,9 +63,9 @@ class DragCaptchaHandler(_CaptchaHandler):
         if not await locator.is_visible():
             return False
 
-        slider = locator.locator(self._SLIDER).first
-        track = locator.locator(self._TRACK).first
-        if not await slider.is_visible() or not await track.is_visible():
+        slider = await _first_visible(locator.locator(self._SLIDER))
+        track = await _first_visible(locator.locator(self._TRACK))
+        if slider is None or track is None:
             return False
 
         for _ in range(self._RETRY_TIMES):

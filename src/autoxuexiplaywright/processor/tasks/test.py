@@ -385,7 +385,7 @@ class TestTask(_Task, metaclass=_ABCMeta):
     ) -> bool:
         button = await self.__wait_for_action_button(action_row)
         if button is None:
-            _logger.error(__("Cannot found available next button or submit button."))
+            _logger.error(__("Cannot find available next button or submit button."))
             return False
         button_class = await button.get_attribute("class") or ""
         button_text = _clean_string(await button.inner_text())
@@ -423,7 +423,7 @@ class TestTask(_Task, metaclass=_ABCMeta):
                 await self.__update_answer(title, answers, choice_titles)
             next_button = await self.__wait_for_action_button(action_row)
             if next_button is None:
-                _logger.error(__("Cannot found available next button."))
+                _logger.error(__("Cannot find available next button."))
                 return False
             await next_button.click(
                 delay=self.__sleep_seconds * 1000,
