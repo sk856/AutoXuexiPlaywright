@@ -387,6 +387,26 @@ msgstr "开始"
 msgid "Settings"
 msgstr "设置"
 
+#: src/autoxuexiplaywright/ui/qt/window.py
+msgid "Pause"
+msgstr "暂停"
+
+#: src/autoxuexiplaywright/ui/qt/window.py
+msgid "Resume"
+msgstr "继续"
+
+#: src/autoxuexiplaywright/ui/qt/window.py
+msgid "Quit"
+msgstr "退出"
+
+#: src/autoxuexiplaywright/ui/qt/window.py
+msgid "Running"
+msgstr "运行中"
+
+#: src/autoxuexiplaywright/ui/qt/window.py
+msgid "Pause requested"
+msgstr "已请求暂停"
+
 #: src/autoxuexiplaywright/ui/qt/settingconfigwidget.py:48
 msgid "Firefox"
 msgstr "Firefox"

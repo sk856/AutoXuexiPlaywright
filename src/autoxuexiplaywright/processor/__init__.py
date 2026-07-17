@@ -23,6 +23,12 @@ from autoxuexiplaywright.event import find_event_by_id as _find_event
 from autoxuexiplaywright.config import Config as _Config
 from autoxuexiplaywright.storage import get_cache_path as _cache
 from autoxuexiplaywright.localize import gettext as __
+from autoxuexiplaywright.processor.pause import (
+    reset_processing_pause as _reset_processing_pause,
+)
+from autoxuexiplaywright.processor.pause import (
+    wait_for_processing_resume as _wait_for_processing_resume,
+)
 from autoxuexiplaywright.processor.navigation import goto as _goto
 from autoxuexiplaywright.processor.tasks.news import NewsTask as NewsTask
 from autoxuexiplaywright.processor.tasks.login import LoginTask as LoginTask
@@ -92,6 +98,7 @@ async def _iter_tasks_from_status_page(
 
     all_finished = False
     while True:
+        await _wait_for_processing_resume()
         await _goto(page, status_page_url)
         points = page.locator(points_selector)
         score_event = _find_event(_EventID.SCORE_UPDATED, _ScoreUpdatedEvent)
@@ -217,6 +224,7 @@ async def launch_processor(config: _Config):
     logger = _get_logger(__name__)
     start_time = _datetime.now()
     logger.info(__("Starting processing..."))
+    _reset_processing_pause()
     _set_ai_answer_config(config)
     _set_read_history_retention_days(config.read_history_retention_days)
 
@@ -242,6 +250,7 @@ async def launch_processor(config: _Config):
                 await context.new_page(),
                 config.skipped,
             ):
+                await _wait_for_processing_resume()
                 task = first_task(task_title)
                 logger.debug(
                     __("Processing %(title)s with %(name)s..."),

@@ -7,6 +7,7 @@ from typing import override as _override
 from logging import getLogger as _getLogger
 from pathlib import Path as _Path
 from datetime import timedelta as _timedelta
+from PySide6.QtGui import QAction as _QAction
 from PySide6.QtGui import QPixmap as _QPixmap
 from PySide6.QtGui import QShowEvent as _QShowEvent
 from PySide6.QtGui import QCloseEvent as _QCloseEvent
@@ -16,6 +17,7 @@ from PySide6.QtCore import QTimer as _QTimer
 from PySide6.QtCore import Signal as _QSignal
 from PySide6.QtCore import QThread as _QThread
 from PySide6.QtCore import QSettings as _QSettings
+from PySide6.QtWidgets import QMenu as _QMenu
 from PySide6.QtWidgets import QFrame as _QFrame
 from PySide6.QtWidgets import QWidget as _QWidget
 from PySide6.QtWidgets import QVBoxLayout as _QVBoxLayout
@@ -31,6 +33,13 @@ from autoxuexiplaywright.ui.qt.utils import (
     getBundledOrLooseResourceContent as _getBundledOrLooseResourceContent,
 )
 from autoxuexiplaywright.ui.qt.qhandler import QHandler as _QHandler
+from autoxuexiplaywright.processor.pause import resume_processing as _resume_processing
+from autoxuexiplaywright.processor.pause import (
+    is_processing_paused as _is_processing_paused,
+)
+from autoxuexiplaywright.processor.pause import (
+    request_processing_pause as _request_processing_pause,
+)
 from autoxuexiplaywright.ui.qt.titlewidget import TitleWidget as _TitleWidget
 from autoxuexiplaywright.ui.qt.settingwindow import SettingWindow as _SettingWindow
 from autoxuexiplaywright.ui.qt.operationwidget import (
@@ -137,6 +146,10 @@ class MainWindow(_QTranslicentBackgroundFramelessWidget[_MainWindowContentWidget
         self.__setUpLoggerHandler()
 
         self.__trayIcon = _QSystemTrayIcon(self)
+        self.__trayStartAction = _QAction(__("Start"), self)
+        self.__trayPauseAction = _QAction(__("Pause"), self)
+        self.__traySettingsAction = _QAction(__("Settings"), self)
+        self.__trayQuitAction = _QAction(__("Quit"), self)
         self.__setUpTrayIcon()
 
         self.__settingWindow = _SettingWindow(content, configPath)
@@ -162,6 +175,7 @@ class MainWindow(_QTranslicentBackgroundFramelessWidget[_MainWindowContentWidget
                 self.__jobThread.start,
             )
         )
+        _ = self.__jobThread.started.connect(self.__onJobStarted)
         self.__setUpJobThread()
 
         userConfigPath = _getConfigPath(
@@ -174,6 +188,7 @@ class MainWindow(_QTranslicentBackgroundFramelessWidget[_MainWindowContentWidget
         )
         self.__setUpUiSettings()
         self.__onStatusUpdated(__("Ready"))
+        self.__setTrayActions(running=False, paused=False)
         if config.auto_start:
             _QTimer.singleShot(0, content.operationWidget().startButton().click)
 
@@ -206,8 +221,68 @@ class MainWindow(_QTranslicentBackgroundFramelessWidget[_MainWindowContentWidget
             case _:
                 pass
 
+    @_Slot(result=None)
+    def __onTrayStartActionTriggered(self):
+        if self.__jobThread.isRunning():
+            if _is_processing_paused():
+                _resume_processing()
+                self.__setTrayActions(running=True, paused=False)
+                self.__onStatusUpdated(__("Running"))
+            return
+        _resume_processing()
+        self.contentWidget(True).operationWidget().startButton().click()
+        self.__setTrayActions(running=True, paused=False)
+
+    @_Slot(result=None)
+    def __onTrayPauseActionTriggered(self):
+        if self.__jobThread.isRunning() and not _is_processing_paused():
+            _request_processing_pause()
+            self.__setTrayActions(running=True, paused=True)
+            self.__onStatusUpdated(__("Pause requested"))
+
+    @_Slot(result=None)
+    def __onTraySettingsActionTriggered(self):
+        self.__settingWindow.show()
+        self.__settingWindow.raise_()
+        self.__settingWindow.activateWindow()
+
+    @_Slot(result=None)
+    def __onTrayQuitActionTriggered(self):
+        self.__trayIcon.hide()
+        self.close()
+        _QApplication.quit()
+
+    @_Slot(result=None)
+    def __onJobStarted(self):
+        self.__setTrayActions(running=True, paused=False)
+
+    def __setTrayActions(self, running: bool, paused: bool):
+        self.__trayStartAction.setText(__("Resume") if paused else __("Start"))
+        self.__trayStartAction.setEnabled(not running or paused)
+        self.__trayPauseAction.setEnabled(running and not paused)
+        self.__traySettingsAction.setEnabled(True)
+        self.__trayQuitAction.setEnabled(True)
+
     def __setUpTrayIcon(self):
         self.__trayIcon.setToolTip(_QApplication.applicationDisplayName())
+        menu = _QMenu(self)
+        menu.addAction(self.__trayStartAction)
+        menu.addAction(self.__trayPauseAction)
+        menu.addAction(self.__traySettingsAction)
+        menu.addAction(self.__trayQuitAction)
+        self.__trayIcon.setContextMenu(menu)
+        _ = self.__trayStartAction.triggered.connect(
+            self.__onTrayStartActionTriggered,
+        )
+        _ = self.__trayPauseAction.triggered.connect(
+            self.__onTrayPauseActionTriggered,
+        )
+        _ = self.__traySettingsAction.triggered.connect(
+            self.__onTraySettingsActionTriggered,
+        )
+        _ = self.__trayQuitAction.triggered.connect(
+            self.__onTrayQuitActionTriggered,
+        )
         _ = self.__trayIcon.activated.connect(self.__onTrayIconActivated)
         _ = self.windowIconChanged.connect(self.__trayIcon.setIcon)
 
@@ -235,6 +310,8 @@ class MainWindow(_QTranslicentBackgroundFramelessWidget[_MainWindowContentWidget
 
         content = self.contentWidget(True)
         content.operationWidget().resetStartButton()
+        _resume_processing()
+        self.__setTrayActions(running=False, paused=False)
         self.__onStatusUpdated(__("Ready"))
 
     @_Slot(str, result=None)
