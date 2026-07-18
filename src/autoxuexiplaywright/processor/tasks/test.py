@@ -383,17 +383,19 @@ class TestTask(_Task, metaclass=_ABCMeta):
         action_row: _Locator,
         solution: _Locator,
     ) -> bool:
-        button = await self.__wait_for_action_button(action_row)
+        button, transitioned = await self.__wait_for_action_button(action_row)
+        if transitioned:
+            return True
         if button is None:
             _logger.error(__("Cannot find available next button or submit button."))
             return False
         button_class = await button.get_attribute("class") or ""
         button_text = _clean_string(await button.inner_text())
         try:
-            await button.click(
-                delay=self.__sleep_seconds * 1000,
-                timeout=self._ACTION_TIMEOUT_MSECS,
-            )
+            # Do not hold a Playwright locator across an artificial mouse
+            # delay. React can replace the button during that delay, which
+            # leaves the click waiting on a detached or unstable node.
+            await button.click(timeout=self._ACTION_TIMEOUT_MSECS)
         except _TimeoutError as e:
             _logger.error(
                 __("Timed out while clicking next or submit: %(e)s"),
@@ -415,38 +417,97 @@ class TestTask(_Task, metaclass=_ABCMeta):
             return False
 
         if await self.__wait_for_solution_or_transition(title, solution):
-            _logger.error(__("The answer to the question is wrong."))
-            red_fonts = solution.locator(self._RED_FONTS)
-            if await red_fonts.count() > 0:
-                await red_fonts.last.wait_for()
-                answers = [_clean_string(i) for i in await red_fonts.all_inner_texts()]
-                await self.__update_answer(title, answers, choice_titles)
-            next_button = await self.__wait_for_action_button(action_row)
-            if next_button is None:
-                _logger.error(__("Cannot find available next button."))
-                return False
-            await next_button.click(
-                delay=self.__sleep_seconds * 1000,
-                timeout=self._ACTION_TIMEOUT_MSECS,
+            return await self.__handle_wrong_answer(
+                title,
+                choice_titles,
+                action_row,
+                solution,
             )
         return True
 
     @_final
-    async def __wait_for_action_button(self, action_row: _Locator) -> _Locator | None:
+    async def __handle_wrong_answer(
+        self,
+        title: str,
+        choice_titles: list[str],
+        action_row: _Locator,
+        solution: _Locator,
+    ) -> bool:
+        _logger.error(__("The answer to the question is wrong."))
+        red_fonts = solution.locator(self._RED_FONTS)
+        if await red_fonts.count() > 0:
+            await red_fonts.last.wait_for()
+            answers = [_clean_string(i) for i in await red_fonts.all_inner_texts()]
+            await self.__update_answer(title, answers, choice_titles)
+        next_button, transitioned = await self.__wait_for_action_button(
+            action_row,
+            title,
+        )
+        if transitioned:
+            return True
+        if next_button is None:
+            _logger.error(__("Cannot find available next button."))
+            return False
+        try:
+            await next_button.click(timeout=self._ACTION_TIMEOUT_MSECS)
+        except _TimeoutError as e:
+            _logger.error(
+                __("Timed out while clicking next or submit: %(e)s"),
+                {"e": e},
+            )
+            return False
+        return True
+
+    @_final
+    async def __wait_for_action_button(
+        self,
+        action_row: _Locator,
+        previous_title: str | None = None,
+    ) -> tuple[_Locator | None, bool]:
+        """Wait for an enabled action or an already-started question transition.
+
+        The page temporarily disables the action button while React replaces
+        the current question. In that window, returning ``None`` immediately
+        races the page and incorrectly fails the whole test.
+        """
+        page = action_row.page
+        question_title = page.locator(self._QUESTION_TITLE).first
         elapsed_msecs = 0
         while elapsed_msecs < self._ACTION_TIMEOUT_MSECS:
+            if previous_title is not None:
+                try:
+                    if await question_title.count() > 0:
+                        current_title = _clean_string(
+                            await question_title.inner_text(
+                                timeout=self._STATE_POLL_INTERVAL_MSECS,
+                            ),
+                        )
+                        if current_title and current_title != previous_title:
+                            _logger.debug(
+                                "Question transition already completed: %r -> %r",
+                                previous_title,
+                                current_title,
+                            )
+                            return None, True
+                except _TimeoutError:
+                    pass
+
             for selector in (self._NEXT_BUTTON, self._SUBMIT_BUTTON):
                 button = action_row.locator(selector).first
                 try:
-                    if await button.count() > 0 and await button.is_enabled(
-                        timeout=self._STATE_POLL_INTERVAL_MSECS,
+                    if (
+                        await button.count() > 0
+                        and await button.is_visible()
+                        and await button.is_enabled(
+                            timeout=self._STATE_POLL_INTERVAL_MSECS,
+                        )
                     ):
-                        return button
+                        return button, False
                 except _TimeoutError:
                     pass
-            await action_row.page.wait_for_timeout(self._STATE_POLL_INTERVAL_MSECS)
+            await page.wait_for_timeout(self._STATE_POLL_INTERVAL_MSECS)
             elapsed_msecs += self._STATE_POLL_INTERVAL_MSECS
-        return None
+        return None, False
 
     @_final
     async def __find_visible_captcha(
