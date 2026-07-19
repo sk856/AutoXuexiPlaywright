@@ -22,7 +22,7 @@ under `src/autoxuexiplaywright/ui/qt`.
 From the repository root:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\release\windows\build-windows.ps1 -Version 4.0.2 -Python 'D:\Program Files\Python311\python.exe'
+powershell -ExecutionPolicy Bypass -File .\release\windows\build-windows.ps1 -Version 4.0.3 -Python 'D:\Program Files\Python311\python.exe'
 ```
 
 The command produces a folder and ZIP under `dist-release/`. The folder contains

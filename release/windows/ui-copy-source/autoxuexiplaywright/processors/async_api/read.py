@@ -226,61 +226,86 @@ class VideoTask(_ReadTask):
     def handles(self) -> list[str]:
         return ["视听学习", "视听学习时长", "我要视听学习"]
 
+    async def _open_video_library(self, source_page):
+        """Open the video library when station cards are not playable videos."""
+        video_library = source_page.locator(ReadSelectors.VIDEO_LIBRARY).first
+        if await video_library.count() == 0:
+            debug("当前视频页没有可打开的视频片库入口")
+            return None
+        try:
+            # Some layouts open a new tab, while others update the current tab.
+            # In the latter case expect_page times out after the click; keeping the
+            # source page lets the normal card wait below observe the new content.
+            async with source_page.context.expect_page(timeout=5000) as event:
+                await video_library.click(timeout=_READ_LIST_TIMEOUT_MSECS)
+            library_page = await event.value
+            self.pages.append(library_page)
+            return library_page
+        except TimeoutError:
+            return source_page
+        except Exception as e:
+            warning(f"打开视频片库失败：{e}")
+            return None
+
     async def __aenter__(self):
         await self._goto(MAIN_PAGE)
         async with self.last_page.context.expect_page() as event:
             await self.last_page.locator(ReadSelectors.VIDEO_ENTRANCE).first.click()
         self.pages.append(await event.value)
 
-        # The TV-station page already contains video cards with data-link-target.
-        # Going directly to the detail URL avoids the headless-only lgdata 403s
-        # triggered by opening the dynamic "片库" route.
+        # The station page can contain a mixture of direct video-detail cards and
+        # static article/category cards. Only direct/playable cards are valid video
+        # candidates; when none exist, explicitly open the video library instead
+        # of treating the static article page as a video detail page.
         text_wrappers = self.last_page.locator(ReadSelectors.VIDEO_TEXT_WRAPPER)
-        if not await self._wait_locator(text_wrappers.last, timeout=_READ_LIST_TIMEOUT_MSECS):
-            # Keep the old library route as a fallback for layouts that do not
-            # expose cards on the TV-station page.
-            video_library = self.last_page.locator(ReadSelectors.VIDEO_LIBRARY).first
-            if await video_library.count() > 0:
-                try:
-                    async with self.last_page.context.expect_page() as event:
-                        await video_library.click(timeout=_READ_LIST_TIMEOUT_MSECS)
-                    self.pages.append(await event.value)
-                    text_wrappers = self.last_page.locator(
-                        ReadSelectors.VIDEO_TEXT_WRAPPER
-                    )
-                except Exception as e:
-                    warning(f"打开视频片库失败，将继续检查当前页面：{e}")
+        cards_loaded = await self._wait_locator(
+            text_wrappers.last, timeout=_READ_LIST_TIMEOUT_MSECS
+        )
+        text_wrapper = (
+            await self._get_first_available_video_title(text_wrappers)
+            if cards_loaded
+            else None
+        )
 
-        if not await self._wait_locator(text_wrappers.last, timeout=_READ_LIST_TIMEOUT_MSECS):
-            if await self.last_page.locator(ReadSelectors.VIDEO_PLAYER).count() > 0 or await self.last_page.locator(ReadSelectors.PAGE_PARAGRAPHS).count() > 0:
+        if not cards_loaded:
+            playable_content = self.last_page.locator(
+                "div.gr-video-player, video, audio"
+            )
+            if await playable_content.count() > 0:
                 video_title_text = clean_string(await self.last_page.title()) or self.last_page.url
                 self._video_title_text = video_title_text
                 info(get_language_string("core-info-processing-video") % video_title_text)
                 return self
-            error(get_language_string("core-error-no-available-videos"))
-            self.status = TaskStatus.FAILED
-            return self
 
-        text_wrapper = await self._get_first_available_video_title(text_wrappers)
-        while text_wrapper == None:
+        if text_wrapper is None:
+            debug("当前视频页没有可用视频卡片，尝试打开视频片库")
+            library_page = await self._open_video_library(self.last_page)
+            if library_page is not None:
+                text_wrappers = library_page.locator(
+                    ReadSelectors.VIDEO_TEXT_WRAPPER
+                )
+                cards_loaded = await self._wait_locator(
+                    text_wrappers.last, timeout=_READ_LIST_TIMEOUT_MSECS
+                )
+                if cards_loaded:
+                    text_wrapper = await self._get_first_available_video_title(
+                        text_wrappers
+                    )
+
+        while text_wrapper is None:
             next_btn = self.last_page.locator(ReadSelectors.NEXT_PAGE)
-            warning(get_language_string(
-                "core-warning-no-videos-on-current-page"))
+            warning(get_language_string("core-warning-no-videos-on-current-page"))
             if await next_btn.count() == 0:
                 error(get_language_string("core-error-no-available-videos"))
                 self.status = TaskStatus.FAILED
                 return self
-            else:
-                await next_btn.first.click()
-                await self.last_page.locator(
-                    Selectors.LOADING).wait_for(state="hidden")
-                text_wrapper = await self._get_first_available_video_title(
-                    text_wrappers)
+            await next_btn.first.click()
+            await self.last_page.locator(Selectors.LOADING).wait_for(state="hidden")
+            text_wrapper = await self._get_first_available_video_title(text_wrappers)
 
         video_title_text = clean_string(await text_wrapper.inner_text())
         self._video_title_text = video_title_text
-        info(get_language_string("core-info-processing-video") %
-             video_title_text)
+        info(get_language_string("core-info-processing-video") % video_title_text)
 
         target_url = await text_wrapper.get_attribute(ReadSelectors.VIDEO_LINK_ATTRIBUTE)
         if target_url:
