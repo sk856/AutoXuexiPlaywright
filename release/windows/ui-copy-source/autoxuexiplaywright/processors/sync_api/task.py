@@ -93,6 +93,10 @@ def do_task(page: Page, task_title: str, close: bool) -> bool:
                 page.close()
             return True
         with task.ready(page, task_title, close) as t:
+            # __enter__/__aenter__ can mark a task as failed before a content page
+            # exists. Do not call finish() against the station/article page then.
+            if t.status != TaskStatus.READY:
+                return t.status == TaskStatus.SUCCESS
             result = t.finish()
             if close and not page.is_closed():
                 page.close()
