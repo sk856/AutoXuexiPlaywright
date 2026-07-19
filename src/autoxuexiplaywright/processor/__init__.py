@@ -63,7 +63,6 @@ _mozilla_dir = _Path.home() / ".mozilla"
 _remove_pki = not _legacy_pki_dir.is_dir()
 _remove_mozilla = not _mozilla_dir.is_dir()
 _STATUS_PAGE_TIMEOUT_MSECS = 5000
-_DAILY_SCORE_LIMIT = 30
 
 
 async def _login(page: _Page):
@@ -86,11 +85,6 @@ async def _get_scores(points: _Locator) -> _Score:
     return _Score(current, total)
 
 
-def _has_reached_daily_score_limit(score: _Score) -> bool:
-    """Return whether the daily points cap has already been reached."""
-    return score.current >= _DAILY_SCORE_LIMIT
-
-
 async def _iter_tasks_from_status_page(
     page: _Page,
     skipped: list[str],
@@ -107,28 +101,18 @@ async def _iter_tasks_from_status_page(
         await _wait_for_processing_resume()
         await _goto(page, status_page_url)
         points = page.locator(points_selector)
-        score: _Score | None = None
-        try:
-            score = await _get_scores(points)
-            score_event = _find_event(_EventID.SCORE_UPDATED, _ScoreUpdatedEvent)
-            if score_event is not None:
-                await score_event.trigger(score)
-        except _TimeoutError as e:
-            logger.error(
-                __(
-                    "Status page scores did not load, "
-                    "continuing without score update: %(e)s",
-                ),
-                {"e": e},
-            )
-
-        if score is not None and _has_reached_daily_score_limit(score):
-            logger.info(
-                "Today's score has reached the daily limit (%d); "
-                "skipping remaining tasks.",
-                _DAILY_SCORE_LIMIT,
-            )
-            break
+        score_event = _find_event(_EventID.SCORE_UPDATED, _ScoreUpdatedEvent)
+        if score_event is not None:
+            try:
+                await score_event.trigger(await _get_scores(points))
+            except _TimeoutError as e:
+                logger.error(
+                    __(
+                        "Status page scores did not load, "
+                        "continuing without score update: %(e)s",
+                    ),
+                    {"e": e},
+                )
 
         if all_finished:
             break
