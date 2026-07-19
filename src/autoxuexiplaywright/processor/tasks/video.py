@@ -90,11 +90,25 @@ class VideoTask(_ReadTask):
             )
             return False
 
+    @classmethod
+    def _is_video_detail_target(cls, target: str) -> bool:
+        """Return whether a card target is the current video-detail route."""
+        return cls._VIDEO_DETAIL_URL_MARKER in target
+
+    @classmethod
+    def _is_static_article_target(cls, target: str) -> bool:
+        """Return whether a card target is a static article rather than media."""
+        target_path = target.split("#", maxsplit=1)[0].split("?", maxsplit=1)[0]
+        return (
+            not cls._is_video_detail_target(target)
+            and target_path.rstrip("/").endswith(".html")
+        )
+
     async def _get_video_candidates(
         self,
         video_list: _Locator,
     ) -> list[tuple[_Locator, str, str]]:
-        """Return unread cards with real detail links first."""
+        """Return unread playable cards, preferring real video detail links."""
         detail_cards: list[tuple[_Locator, str, str]] = []
         fallback_cards: list[tuple[_Locator, str, str]] = []
         for i in range(await video_list.count()):
@@ -104,8 +118,14 @@ class VideoTask(_ReadTask):
                 continue
             target = await video.get_attribute(self._VIDEO_LINK_ATTRIBUTE) or ""
             candidate = (video, title, target)
-            if self._VIDEO_DETAIL_URL_MARKER in target:
+            if self._is_video_detail_target(target):
                 detail_cards.append(candidate)
+            elif self._is_static_article_target(target):
+                _logger.debug(
+                    "Skipping static article card in video list: title=%r target=%s",
+                    title,
+                    target,
+                )
             else:
                 fallback_cards.append(candidate)
         return [*detail_cards, *fallback_cards]

@@ -1,6 +1,6 @@
 """Automatically finish something boring."""
 
-__version__ = "4.0.0"
+__version__ = "4.0.1"
 
 APPNAME = "AutoXuexiPlaywright"
 APPAUTHOR = "AutoXuexiPlaywright"
