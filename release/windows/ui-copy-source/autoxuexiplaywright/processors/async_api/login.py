@@ -1,0 +1,105 @@
+from typing import Self
+from base64 import b64decode
+from playwright.async_api import TimeoutError, Page, Locator
+# Relative imports
+from .task import Task
+from ..common import RETRY_TIMES
+from ..common.browser_state import save_browser_state_async
+from ..common.selectors import LoginSelectors
+from ..common.urls import LOGIN_PAGE
+from ...events import EventID, find_event_by_id
+from ...languages import get_language_string
+from ...logger import info, error, warning
+from ...storage import get_cache_path
+
+
+_COOKIE_LOGIN_TIMEOUT_MSECS = 20000
+
+
+class LoginTask(Task):
+
+    @property
+    def requires(self) -> list[str]:
+        return []
+
+    @property
+    def handles(self) -> list[str]:
+        return ["登录"]
+
+    async def __aenter__(self) -> Self:
+        await self._goto(LOGIN_PAGE)
+        await self.last_page.bring_to_front()
+        return self
+
+    async def finish(self) -> bool:
+        success = False
+        if await self._wait_locator(self.last_page.locator(LoginSelectors.LOGIN_CHECK).first, _COOKIE_LOGIN_TIMEOUT_MSECS):
+            info(get_language_string("core-info-cookie-login-success"))
+            success = True
+        else:
+            info(get_language_string("core-info-cookie-login-failed"))
+            failed_login = 0
+            while not success and failed_login <= RETRY_TIMES:
+                qglogin = self.last_page.locator(LoginSelectors.LOGIN_QGLOGIN)
+                try:
+                    await qglogin.first.wait_for()
+                    await qglogin.first.scroll_into_view_if_needed()
+                except TimeoutError as e:
+                    failed_login, raise_exception = await self._on_timeout(
+                        failed_login, get_language_string("core-err-load-qr-failed"))
+                    if raise_exception:
+                        raise e
+                else:
+                    image = qglogin.first.frame_locator(
+                        LoginSelectors.LOGIN_IFRAME).locator(LoginSelectors.LOGIN_IMAGE)
+                    await image.first.wait_for()
+                    image_bytes = await self._get_image_bytes(image.first)
+                    info(get_language_string("core-info-scan-required"))
+                    find_event_by_id(EventID.QR_UPDATED).invoke(image_bytes)
+                    login_check = self.last_page.locator(
+                        LoginSelectors.LOGIN_CHECK)
+                    try:
+                        await login_check.first.wait_for()
+                    except TimeoutError as e:
+                        failed_login, raise_exception = await self._on_timeout(
+                            failed_login, get_language_string("core-err-login-failed-too-many-times"))
+                        if raise_exception:
+                            raise e
+                    else:
+                        info(get_language_string("core-info-qr-login-success"))
+                        await save_browser_state_async(self.last_page)
+                        find_event_by_id(
+                            EventID.QR_UPDATED).invoke("".encode())
+                        success = True
+
+        return success
+
+    async def _on_timeout(self, failed_times: int, error_msg: str, page: Page | None = None) -> tuple[int, bool]:
+        if page == None:
+            page = self.last_page
+        failed_times += 1
+        if failed_times > RETRY_TIMES:
+            error(error_msg)
+            raise_exception = True
+        else:
+            try:
+                await page.reload(wait_until="domcontentloaded", timeout=15000)
+            except TimeoutError as e:
+                warning(get_language_string("core-err-load-qr-failed") + f"：刷新登录页超时，继续重试：{e}")
+            except Exception as e:
+                warning(get_language_string("core-err-load-qr-failed") + f"：刷新登录页中断，继续重试：{e}")
+            raise_exception = False
+        return failed_times, raise_exception
+
+    async def _get_image_bytes(self, image_locator: Locator) -> bytes:
+        image_src = await image_locator.get_attribute("src") or ","
+        image_src_type_and_data = image_src.split(",")
+        if len(image_src_type_and_data) >= 2:
+            image_src_type = image_src_type_and_data[0]
+            image_src_data = image_src_type_and_data[1]
+            if image_src_type.endswith("base64"):
+                image_src_bytes = b64decode(image_src_data)
+                with open(get_cache_path("qr.png"), "wb") as writer:
+                    writer.write(image_src_bytes)
+                return image_src_bytes
+        raise RuntimeError("Not a valid image locator")

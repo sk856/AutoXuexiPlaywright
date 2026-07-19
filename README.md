@@ -10,15 +10,12 @@
 
 ### Windows 图形版
 
-当前 Windows 发布版：**v4.0.0**
+当前 Windows 发布版：**v4.0.2**
 
 - [进入 Releases 页面](https://github.com/sk856/AutoXuexiPlaywright/releases)
-- [下载 AutoXuexiPlaywright-v4.0.0-windows-x64.zip](https://github.com/sk856/AutoXuexiPlaywright/releases/download/v4.0.0/AutoXuexiPlaywright-v4.0.0-windows-x64.zip)
+- [下载 AutoXuexiPlaywright-v4.0.2-windows-x64.zip](https://github.com/sk856/AutoXuexiPlaywright/releases/download/v4.0.2/AutoXuexiPlaywright-v4.0.2-windows-x64.zip)
 
-SHA256：
-
-```text
-F902E32F0AB6C932121BC3B845FD2D8D3EADA83A84E19000F187EA2106211794
+$1154D8B81F90CF4A778340F3E2FB1182142AD28BA232CE37D5C2A0B9DD92A0A75
 ```
 
 下载后请**完整解压 ZIP**，然后运行：
@@ -30,7 +27,7 @@ AutoXuexiPlaywright.exe
 发布包采用目录模式，必须保留以下结构：
 
 ```text
-AutoXuexiPlaywright-v4.0.0-windows-x64/
+AutoXuexiPlaywright-v4.0.2-windows-x64/
 ├─ AutoXuexiPlaywright.exe
 └─ _internal/
 ```
@@ -255,7 +252,8 @@ AI 仅作为最后兜底，因此并非每道题都会请求接口。
 
 ## 版本与变更
 
-- 当前版本：`4.0.0`
+- 当前版本：4.0.2
+- v4.0.2：修复 v4.0.1 Windows 包错误发布为空白界面的问题；正式包固定使用 ui-copy 仪表盘界面，窗口不透明显示，并过滤视频列表中的静态文章卡片。
 - 更新记录：[`CHANGELOG.md`](./CHANGELOG.md)
 - 发布页面：[GitHub Releases](https://github.com/sk856/AutoXuexiPlaywright/releases)
 
